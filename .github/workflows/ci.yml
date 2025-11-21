@@ -1,0 +1,64 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Cancel in-progress runs for the same branch/PR.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Tests (${{ matrix.system }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - system: x86_64-linux
+            runner: ubuntu-latest
+          - system: aarch64-linux
+            runner: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@v31
+        with:
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+
+      # The Layer 4 VM test boots a QEMU guest, which needs /dev/kvm. GitHub's
+      # x86_64 Linux runners provide KVM; this makes the device accessible to
+      # the unprivileged runner user. The aarch64 runners have no nested virt,
+      # so the KVM setup and VM test are gated to x86_64 below.
+      - name: Enable KVM
+        if: matrix.system == 'x86_64-linux'
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
+            | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Eval tests (Layer 1 lib + Layer 2 config)
+        run: nix build .#checks.${{ matrix.system }}.eval -L
+
+      - name: VM boot test (Layer 4)
+        if: matrix.system == 'x86_64-linux'
+        run: nix build .#checks.${{ matrix.system }}.vm -L
+
+      # `nix flake check` builds every check for the runner's system, including
+      # the KVM-bound VM test — so it only runs on x86_64. aarch64 coverage is
+      # the explicit `eval` build above plus the smoke test below.
+      - name: Flake check (all outputs evaluate)
+        if: matrix.system == 'x86_64-linux'
+        run: nix flake check -L
+
+      - name: Template smoke test (Layer 3)
+        run: bash tests/smoke.sh

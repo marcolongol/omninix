@@ -1,0 +1,48 @@
+# OmniNix Test Suite
+
+Automated tests for the OmniNix framework. The eval tests run as flake checks
+(`lib.runTests`, no extra inputs); the VM test boots a real host; the smoke test
+exercises the template.
+
+## Running
+
+```bash
+./tests/run-all-tests.sh        # eval checks + VM test + template smoke
+FAST=1 ./tests/run-all-tests.sh # skip the heavy VM test
+nix flake check                 # eval checks + VM test (no template smoke)
+```
+
+## Layout
+
+| File | Layer | What it covers |
+|------|-------|----------------|
+| `lib-tests.nix` | 1 — pure lib | `forAllNixFiles`/.nix filter, `mkDirMap`, `mapAttrsMaybe`, `pick`/`drop` (+ throw), `validations.assert*` |
+| `config-tests.nix` | 2 — config behaviour | Evaluates fixture hosts via `mkNixosConfigurations` and asserts on `config.*`: fail-closed passwords, opt-in groups, per-host `hostSystems`, impermanence integration assertion, `allowUnfree`, the `omninix.*` namespace |
+| `vm-test.nix` | 4 — integration | Boots a host with `runNixOSTest`; asserts the user is created, has `wheel`, lacks `docker`, has a home dir and a password hash |
+| `checks.nix` | harness | Aggregates the eval suites into `checks.<system>.eval` (fails, printing offending cases, if any test ≠ expected) and exposes `checks.<system>.vm` on Linux |
+| `smoke.sh` | 3 — template | `nix flake init -t` against the local checkout, then asserts it evaluates (real exit codes) |
+| `fixtures/discovery/` | — | Inputs for the discovery tests, including a stray `README.md`/`.txt` that must be ignored |
+
+## How the eval checks fail
+
+`checks.<system>.eval` runs `lib.runTests` over Layers 1 + 2. `runTests` returns
+the list of cases whose `expr` differs from `expected`; the derivation builds
+iff that list is empty, otherwise it prints each failing case (name, expected,
+got) and exits non-zero. No `|| true`, no unconditional "passed".
+
+## Adding tests
+
+- **Lib/config test:** add a `testSomething = { expr = ...; expected = ...; };`
+  entry to `lib-tests.nix` or `config-tests.nix`. Names should start with
+  `test`. For expected-failure cases assert on
+  `(builtins.tryEval expr).success`.
+- **VM assertion:** extend the `testScript` in `vm-test.nix`.
+
+## CI
+
+Deferred for now. When added, CI is just:
+
+```yaml
+- run: nix flake check               # eval + VM
+- run: bash tests/run-all-tests.sh   # + template smoke
+```

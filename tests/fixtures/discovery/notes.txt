@@ -1,0 +1,1 @@
+Discovery fixture: another stray non-.nix file that must be ignored.

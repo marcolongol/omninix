@@ -1,0 +1,18 @@
+result
+result-*
+.direnv/
+
+# --- Secrets ---------------------------------------------------------------
+# Do NOT commit secret material. Everything under secrets/ is ignored by
+# default so a *plaintext* password can never be committed by accident before
+# it is encrypted. Exceptions: the public .sops.yaml config and the .gitkeep
+# placeholder. Once a file is sops-encrypted you can deliberately track it:
+#   git add -f secrets/users/<name>.yaml
+secrets/**
+!secrets/.gitkeep
+!secrets/.sops.yaml
+
+# Private key material — never commit.
+*.age
+keys.txt
+*.key
