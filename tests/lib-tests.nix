@@ -24,6 +24,13 @@ in {
     expected = "x";
   };
 
+  # Discovered entries stay paths in the source tree, so a module can import
+  # files outside its own directory.
+  testDiscoveryKeepsPaths = {
+    expr = (omninix.forAllNixFiles discoveryDir (fn: fn)).role-a;
+    expected = discoveryDir + "/role-a.nix";
+  };
+
   # Missing directory yields an empty set, not an error.
   testDiscoveryMissingDirEmpty = {
     expr = omninix.forAllNixFiles ./fixtures/does-not-exist (_: "x");

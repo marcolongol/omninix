@@ -46,14 +46,18 @@
             # would be keyed verbatim and later `import`ed, producing a
             # confusing eval error.
             #
+            # `dir + "/…"` keeps a path a path. Interpolating it ("${dir}/…")
+            # would copy each scanned directory to the store on its own, so a
+            # discovered module could not import files outside its directory.
+            #
             # Precedence note: a file `foo.nix` and a directory `foo/` (with
             # default.nix) in the same directory both map to the key `foo`;
             # builtins.readDir ordering then decides which wins via listToAttrs.
             # Avoid naming a file and a directory the same within one scan dir.
             if type == "regular" && final.hasSuffix ".nix" fn
-            then final.nameValuePair (final.removeSuffix ".nix" fn) (f "${dir}/${fn}")
+            then final.nameValuePair (final.removeSuffix ".nix" fn) (f (dir + "/${fn}"))
             else if type == "directory" && builtins.pathExists "${dir}/${fn}/default.nix"
-            then final.nameValuePair fn (f "${dir}/${fn}")
+            then final.nameValuePair fn (f (dir + "/${fn}"))
             else null
         ))
       ]
