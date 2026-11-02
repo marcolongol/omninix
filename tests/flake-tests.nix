@@ -163,9 +163,25 @@ in {
     };
   };
 
-  testFlakeModuleRequiresHostsDir = {
-    expr = bare.options.omninix.hostsDir.isDefined;
-    expected = false;
+  # No hostsDir: a users-only (or roles/profiles-only) flake still evaluates.
+  testFlakeModuleHostsDirOptional = {
+    expr = let
+      out = inputs.flake-parts.lib.mkFlake {inputs = consumerInputs;} {
+        imports = [inputs.self.flakeModules.default];
+        systems = [system];
+        omninix = {
+          inherit (settings) usersDir;
+          defaultSystem = system;
+        };
+      };
+    in {
+      hosts = out.nixosConfigurations;
+      users = builtins.attrNames out.homeConfigurations;
+    };
+    expected = {
+      hosts = {};
+      users = builtins.attrNames plain.homeConfigurations;
+    };
   };
 
   testFlakeModuleTypeChecksOptions = {

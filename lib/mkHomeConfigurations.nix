@@ -71,13 +71,15 @@
             # Identity module: standalone Home Manager has no NixOS user to
             # supply these, so infer them from the directory name. mkDefault
             # lets a user's own config override them. homeDirectory follows the
-            # platform (darwin uses /Users). The stateVersion default matches
+            # platform (darwin uses /Users), except root's, which is /root. The stateVersion default matches
             # the NixOS fallback in modules/nixos.
             identityModule = {lib, ...}: {
               home.username = lib.mkDefault userName;
               home.homeDirectory =
                 lib.mkDefault (
-                  if lib.hasSuffix "darwin" system
+                  if userName == "root"
+                  then "/root"
+                  else if lib.hasSuffix "darwin" system
                   then "/Users/${userName}"
                   else "/home/${userName}"
                 );

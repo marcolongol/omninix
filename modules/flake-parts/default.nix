@@ -45,10 +45,7 @@ in {
   imports = lib.optional (inputs ? home-manager && inputs.home-manager ? flakeModules) inputs.home-manager.flakeModules.home-manager;
 
   options.omninix = {
-    hostsDir = mkOption {
-      type = types.path;
-      description = "Directory of hosts; each .nix file or dir/default.nix becomes nixosConfigurations.<name>.";
-    };
+    hostsDir = dirOption "Directory of hosts; each .nix file or dir/default.nix becomes nixosConfigurations.<name>.";
     rolesDir = dirOption "Directory of system roles, imported into every host.";
     extraRoles = mkOption {
       type = moduleSet;

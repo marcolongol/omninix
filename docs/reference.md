@@ -16,7 +16,7 @@ fails with its file location.
 
 | Option | Type | Default | Meaning |
 |---|---|---|---|
-| `hostsDir` | path | required | one host per `.nix` file or `<name>/default.nix` → `nixosConfigurations.<name>` |
+| `hostsDir` | path or null | `null` | one host per `.nix` file or `<name>/default.nix` → `nixosConfigurations.<name>` |
 | `rolesDir` | path or null | `null` | roles, imported into every host |
 | `extraRoles` | attrs of modules | `{}` | more roles by name, e.g. `omninix.roles`; `rolesDir` wins on a name clash |
 | `usersDir` | path or null | `null` | users → host users and `homeConfigurations.<name>` |

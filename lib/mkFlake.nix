@@ -15,7 +15,8 @@
   #
   # Parameters:
   #   inputs                  - Flake inputs (first parameter, curried)
-  #   hostsDir                - (required) Path to hosts directory
+  #   hostsDir                - Path to hosts directory (optional; without it
+  #                             there are no nixosConfigurations)
   #   rolesDir                - Path to roles directory (optional)
   #   usersDir                - Path to users directory (optional)
   #   profilesDir             - Path to profiles directory (optional)
@@ -34,9 +35,8 @@
   #
   # Features:
   #   - Auto-discovers .nix files in all directories
-  #   - Validates required directories exist
-  #   - Warns about missing optional directories
-  #   - Ensures at least one host exists
+  #   - Warns about missing directories
+  #   - Ensures at least one host exists when hostsDir is given
   #   - Debug tracing when enabled
   #
   # Example:
@@ -50,7 +50,7 @@
   #       debug = true;  # Enable debug output
   #     };
   mkFlake = inputs: {
-    hostsDir,
+    hostsDir ? null,
     rolesDir ? null,
     extraRoles ? {},
     usersDir ? null,
@@ -123,11 +123,12 @@
     debug,
   }: let
     debugTrace = final.omninix.mkDebugTrace debug;
-    inherit (final.omninix) validatePath validateOptionalPath;
+    inherit (final.omninix) validateOptionalPath;
 
-    # Run validation on all input paths
-    # Required paths throw errors, optional paths produce warnings
-    validatedHostsDir = validatePath "hostsDir" hostsDir;
+    # Run validation on all input paths; missing directories produce warnings.
+    # hostsDir is optional too, so a flake can hold only users (standalone
+    # homeConfigurations) or only roles/profiles for other fleets to import.
+    validatedHostsDir = validateOptionalPath "hostsDir" hostsDir;
     validatedRolesDir = validateOptionalPath "rolesDir" rolesDir;
     validatedUsersDir = validateOptionalPath "usersDir" usersDir;
     validatedProfilesDir = validateOptionalPath "profilesDir" profilesDir;
@@ -143,7 +144,7 @@
     dirs = let
       discovered = debugTrace "Scanning directories for .nix files..." (
         final.omninix.mkDirMap (
-          {hosts = validatedHostsDir;}
+          final.optionalAttrs (validatedHostsDir != null) {hosts = validatedHostsDir;}
           // final.optionalAttrs (validatedRolesDir != null) {roles = validatedRolesDir;}
           // final.optionalAttrs (validatedUsersDir != null) {users = validatedUsersDir;}
           // final.optionalAttrs (validatedProfilesDir != null) {profiles = validatedProfilesDir;}
@@ -173,6 +174,7 @@
       result =
         discovered
         // {
+          hosts = discovered.hosts or {};
           roles = mergedRoles;
           profiles = mergedProfiles;
         };
@@ -238,7 +240,8 @@
     # binding would never be forced under laziness (the previous no-hosts check
     # was silently dead).
     assert final.omninix.assertIsString "defaultSystem" defaultSystem;
-    assert (dirs ? hosts && dirs.hosts != {})
+    # An empty hostsDir is almost certainly a mistake; leaving it unset is not.
+    assert (validatedHostsDir == null || dirs.hosts != {})
     || throw ''
       OmniNix Error: No hosts found in hostsDir!
       Path: ${toString validatedHostsDir}
