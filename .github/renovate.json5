@@ -1,0 +1,42 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    ":dependencyDashboard",
+    ":semanticCommits"
+  ],
+  "automerge": false,
+  "platformAutomerge": false,
+
+  "nix": {
+    "enabled": true
+  },
+
+  // Library repo: lock refreshes merge once CI is green. Renovate checks the
+  // status itself (platformAutomerge off), so no branch protection is needed.
+  "lockFileMaintenance": {
+    "enabled": true,
+    "automerge": true,
+    "postUpdateOptions": ["nixFlakeUpdate"],
+    "schedule": ["before 6am on monday"],
+  },
+
+  "packageRules": [
+    {
+      "matchManagers": ["github-actions"],
+      "matchUpdateTypes": ["digest", "patch", "minor"],
+      "automerge": true
+    },
+    {
+      "matchUpdateTypes": ["major"],
+      "automerge": false,
+      "labels": ["dependencies", "major-update"]
+    }
+  ],
+
+  "timezone": "America/Los_Angeles",
+  "labels": ["dependencies"],
+  "branchPrefix": "renovate/",
+  "prHourlyLimit": 0,
+  "prConcurrentLimit": 0
+}
