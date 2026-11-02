@@ -241,6 +241,15 @@ All four are plain modules. A role/profile is "always imported, self-declares
 }
 ```
 
+`config.omninix.activeUsers` (read-only) lists the enabled users, so roles and
+hosts can do per-user config without re-filtering `hostUsers`:
+
+```nix
+home-manager.users = lib.genAttrs config.omninix.activeUsers (_: {
+  wayland.windowManager.hyprland.settings.monitor = [ ",preferred,auto,1" ];
+});
+```
+
 ### Roles — what it *does* (system level)
 
 ```nix

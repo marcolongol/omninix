@@ -87,6 +87,28 @@ in {
     expected = true;
   };
 
+  # --- active users --------------------------------------------------------
+
+  # Only enabled hostUsers are listed.
+  testActiveUsersListsEnabledOnly = {
+    expr =
+      (evalHost {
+        module = {...}: {
+          imports = [bootstrapUser];
+          omninix.hostUsers.bob.enable = false;
+        };
+      })
+      .omninix
+      .activeUsers;
+    expected = ["alice"];
+  };
+
+  # No users: empty list, not an error.
+  testActiveUsersEmpty = {
+    expr = (evalHost {module = {...}: {};}).omninix.activeUsers;
+    expected = [];
+  };
+
   # --- groups (H4) ---------------------------------------------------------
 
   # No privileged groups granted by default.

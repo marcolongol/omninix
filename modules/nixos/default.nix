@@ -95,6 +95,18 @@ in {
       '';
     };
 
+    activeUsers = lib.mkOption {
+      type = lib.types.listOf lib.types.str;
+      readOnly = true;
+      default = activeUsers;
+      defaultText = lib.literalExpression "names of the enabled omninix.hostUsers";
+      description = ''
+        Names of the users enabled on this host (read-only). Use it in roles
+        and hosts instead of re-filtering omninix.hostUsers, e.g.
+        lib.genAttrs config.omninix.activeUsers (_: { ... }).
+      '';
+    };
+
     defaultUserGroups = lib.mkOption {
       type = lib.types.listOf lib.types.str;
       default = [];
