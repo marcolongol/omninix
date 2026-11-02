@@ -6,7 +6,7 @@
   # Profiles this user enables (enable-based).
   profiles = {
     common.enable = true;
-    # developer.enable = true;   # contains unfree pkgs -> set allowUnfree = true in flake.nix
+    # developer.enable = true;   # contains unfree pkgs -> set omninix.allowUnfree = true in flake.nix
   };
 
   programs.git = {

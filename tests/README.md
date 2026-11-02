@@ -21,7 +21,7 @@ nix flake check                 # eval checks + VM test (no template smoke)
 | `config-tests.nix` | 2 — config behaviour | Evaluates fixture hosts via `mkNixosConfigurations` and asserts on `config.*`: fail-closed passwords, opt-in groups, per-host `hostSystems`, impermanence integration assertion, `allowUnfree`, the `omninix.*` namespace |
 | `vm-test.nix` | 4 — integration | Boots a host with `runNixOSTest`; asserts the user is created, has `wheel`, lacks `docker`, has a home dir and a password hash |
 | `checks.nix` | harness | Aggregates the eval suites into `checks.<system>.eval` (fails, printing offending cases, if any test ≠ expected) and exposes `checks.<system>.vm` on Linux |
-| `smoke.sh` | 3 — template | `nix flake init -t` against the local checkout, then asserts it evaluates (real exit codes) |
+| `smoke.sh` | 3 — template | `nix flake init -t` against the local checkout, asserts it evaluates via `flakeModules.default` (incl. formatter, `pkgs`/`packages` parity on the host's system), then swaps in a `mkFlake` flake.nix on the same scaffold and asserts the same example-host toplevel |
 | `fixtures/discovery/` | — | Inputs for the discovery tests, including a stray `README.md`/`.txt` that must be ignored |
 
 ## How the eval checks fail

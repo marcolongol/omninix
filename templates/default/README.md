@@ -124,25 +124,17 @@ Create `profiles/my-profile.nix`:
 ```
 Enable it for a user: `profiles.my-profile.enable = true;`
 
-## Optional Integrations
+## Third-party modules
 
-Ecosystem modules (impermanence, disko, stylix) are **consumer-provided** and
-opt-in. Declare the input in `flake.nix`, then enable it under `integrations`:
-```nix
-# in flake.nix mkFlake call:
-integrations = {
-  impermanence = true;
-  disko = true;
-};
-```
-Enabling an integration without its flake input fails with a clear error.
-`roles.impermanent.enable = true` additionally requires
-`integrations.impermanence = true`.
+Ecosystem modules (impermanence, disko, stylix) are plain modules: declare the
+input in `flake.nix` and import it in a host, role, or `modules/nixos/*.nix`.
+`roles/impermanent.nix` imports impermanence itself and fails the build if the
+role is enabled without the input.
 
 ## Unfree Packages
 
-Unfree packages are **off by default**. Set `allowUnfree = true;` in the
-`mkFlake` call to opt the whole flake in (needed for e.g. the `developer`
+Unfree packages are **off by default**. Set `omninix.allowUnfree = true;` in
+`flake.nix` to opt the whole flake in (needed for e.g. the `developer`
 profile's `dbeaver`/`ngrok`, nvidia drivers, etc.).
 
 ## Learn More

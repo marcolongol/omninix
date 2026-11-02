@@ -3,7 +3,14 @@
 
   inputs = {
     nixpkgs.url = "github:nixos/nixpkgs?ref=nixos-26.05";
+
+    flake-parts = {
+      url = "github:hercules-ci/flake-parts";
+      inputs.nixpkgs-lib.follows = "nixpkgs";
+    };
+
     omninix.url = "github:marcolongol/omninix";
+    omninix.inputs.flake-parts.follows = "flake-parts";
 
     # Foundational: auto-wired when present.
     home-manager = {
@@ -25,27 +32,37 @@
   };
 
   outputs = {
-    self,
-    nixpkgs,
+    flake-parts,
     omninix,
     ...
   } @ inputs:
-    # mkFlake produces `nixosConfigurations.<host>` and, from ./users, also
-    # `homeConfigurations.<user>` for standalone Home Manager use on non-NixOS
-    # machines (`home-manager switch --flake .#<user>`). No extra config needed.
-    omninix.lib.omninix.mkFlake inputs {
-      hostsDir = ./hosts;
-      rolesDir = ./roles;
-      extraRoles = omninix.roles;
-      usersDir = ./users;
-      profilesDir = ./profiles;
-      extraProfiles = omninix.profiles;
-      # Auto-discovered packages -> packages.<system>.<name>
-      packagesDir = ./packages;
-      # Uncomment once you've set up sops-nix secrets:
-      # secretsPath = ./secrets;
-      # Unfree packages are off by default. Set true if you enable something
-      # that needs them (e.g. the developer profile's dbeaver/ngrok, nvidia):
-      # allowUnfree = true;
+    flake-parts.lib.mkFlake {inherit inputs;} {
+      # nixosConfigurations.<host> and, from ./users, homeConfigurations.<user>
+      # for standalone Home Manager (`home-manager switch --flake .#<user>`).
+      imports = [omninix.flakeModules.default];
+
+      # Systems for perSystem outputs (packages, formatter, devShells, ...).
+      systems = ["x86_64-linux" "aarch64-linux"];
+
+      omninix = {
+        hostsDir = ./hosts;
+        rolesDir = ./roles;
+        extraRoles = omninix.roles;
+        usersDir = ./users;
+        profilesDir = ./profiles;
+        extraProfiles = omninix.profiles;
+        # Auto-discovered packages -> packages.<system>.<name> and pkgs.<name>
+        packagesDir = ./packages;
+        # Uncomment once you've set up sops-nix secrets:
+        # secretsPath = ./secrets;
+        # Unfree packages are off by default. Set true if you enable something
+        # that needs them (e.g. the developer profile's dbeaver/ngrok, nvidia):
+        # allowUnfree = true;
+      };
+
+      # perSystem pkgs is OmniNix's: overlays, packagesDir and allowUnfree applied.
+      perSystem = {pkgs, ...}: {
+        formatter = pkgs.alejandra;
+      };
     };
 }

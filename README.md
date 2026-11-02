@@ -6,9 +6,10 @@ OmniNix is **a library, not a framework**. It doesn't own your `flake.nix` or
 hide your outputs behind a DSL. It gives you a handful of plain functions —
 directory discovery, two config builders, and a secure-by-default NixOS/Home
 Manager module — that you call from your own flake and assemble however you
-like. There's a batteries-included wrapper (`mkFlake`) if you want zero
-boilerplate, but it's one function on top of the library, not the library
-itself.
+like. On top of that sit two thin entry points: a **flake-parts module**
+(`omninix.flakeModules.default`) for the common flake-parts setup, and a
+batteries-included `mkFlake` function if you'd rather not use flake-parts. Both
+run the same engine.
 
 It stays **inside the NixOS module system** on purpose: roles and profiles are
 ordinary modules gated by `enable` flags, so merging, options, types,
@@ -28,7 +29,7 @@ nix flake init -t github:marcolongol/omninix   # scaffold a whole config
   No registration, no central list.
 - 🔐 **Secure by default** — fail-closed passwords, no privileged groups unless
   you opt in, unfree off by default. Enforced by the OmniNix module, so it holds
-  whether you use `mkFlake` or call the builders yourself.
+  whether you use the flake-parts module, `mkFlake`, or the builders themselves.
 - 🏠 **One user file, two worlds** — each user builds both as a NixOS HM submodule
   and as a standalone `homeConfigurations.<name>` for non-NixOS machines.
 - 💾 **Persistence aggregation** — the one piece of impermanence glue you can't
@@ -64,7 +65,7 @@ nix flake init -t github:marcolongol/omninix
 You get:
 
 ```
-flake.nix            # calls mkFlake, wires inputs
+flake.nix            # flake-parts + omninix.flakeModules.default, wires inputs
 hosts/example-host/  # default.nix + hardware-config.nix placeholder
 roles/common.nix     # a starter system role
 users/example-user/  # default.nix
@@ -151,7 +152,8 @@ Everything lives under `omninix.lib.omninix.*`. Pick the layer you want.
 
 | Function | Type | What it does |
 |---|---|---|
-| `mkFlake inputs { … }` | `Inputs -> Attrs -> Outputs` | **Batteries-included.** Discovers `hosts/roles/users/profiles`, builds everything, returns `nixosConfigurations`, `homeConfigurations`, and (optionally) `packages`. |
+| `omninix.flakeModules.default` | flake-parts module | **The usual entry point.** Typed `omninix.*` options over the same engine as `mkFlake`; hosts/users/packages land in `flake.*` and `perSystem`. |
+| `mkFlake inputs { … }` | `Inputs -> Attrs -> Outputs` | **Batteries-included, no flake-parts.** Discovers `hosts/roles/users/profiles`, builds everything, returns `nixosConfigurations`, `homeConfigurations`, and (optionally) `packages`. |
 | `mkNixosConfigurations { … }` | `Attrs -> { host = system }` | Build NixOS systems yourself. Imports the secure OmniNix module + your roles. |
 | `mkHomeConfigurations { … }` | `Attrs -> { user = hmConfig }` | Build standalone Home Manager configs for non-NixOS machines. |
 | `mkHomeModules` | shared module set | The per-user HM module set, identical between the NixOS submodule and standalone paths. |
@@ -164,16 +166,64 @@ The flake also exposes `omninix.roles`, `omninix.profiles` (the shipped
 library), `omninix.templates` (scaffolding), and `omninix.lib` (the nixpkgs lib
 extended with the above).
 
-### Path A — batteries included
+### Path A — flake-parts module
 
-Let OmniNix own discovery and assembly. Shortest possible flake:
+Import the module into your flake-parts flake. Discovery and assembly come from
+OmniNix; everything else (`perSystem`, other flake-parts modules) is yours:
+
+```nix
+{
+  inputs = {
+    flake-parts.url = "github:hercules-ci/flake-parts";
+    omninix = {
+      url = "github:marcolongol/omninix";
+      inputs.flake-parts.follows = "flake-parts";
+    };
+    # + nixpkgs, home-manager, sops-nix, … (see Dependencies)
+  };
+
+  outputs = { flake-parts, omninix, ... }@inputs:
+    flake-parts.lib.mkFlake { inherit inputs; } {
+      imports = [ omninix.flakeModules.default ];
+      systems = [ "x86_64-linux" "aarch64-linux" ]; # cover every host's system
+
+      omninix = {
+        hostsDir    = ./hosts;
+        rolesDir    = ./roles;
+        usersDir    = ./users;
+        profilesDir = ./profiles;
+        secretsPath = ./secrets;
+        # hostSystems = { rpi = "aarch64-linux"; };  # per-host arch
+        # allowUnfree = true;                         # off by default
+      };
+
+      perSystem = { pkgs, ... }: {
+        formatter = pkgs.alejandra;
+      };
+    };
+}
+```
+
+Notes:
+- `perSystem`'s `pkgs` is OmniNix's: `overlaysDir`, `packagesDir` and
+  `allowUnfree` applied, same as the hosts. To replace it, set
+  `_module.args.pkgs` with a plain definition (or `mkForce`), not `mkDefault`.
+- `packagesDir` packages land in `perSystem.packages`. A local
+  `perSystem.packages.<name>` replaces only that output; hosts keep the
+  `packagesDir` version as `pkgs.<name>`.
+- The options are typed: a typo such as `omninix.hostDir` fails with the file
+  location instead of being ignored.
+
+### Path A′ — `mkFlake`, no flake-parts
+
+The same engine as a plain function, if you don't want flake-parts:
 
 ```nix
 {
   inputs.omninix.url = "github:marcolongol/omninix";
   # + nixpkgs, home-manager, sops-nix, … (see Dependencies)
 
-  outputs = { self, nixpkgs, omninix, ... }@inputs:
+  outputs = { omninix, ... }@inputs:
     omninix.lib.omninix.mkFlake inputs {
       hostsDir    = ./hosts;
       rolesDir    = ./roles;
@@ -363,8 +413,8 @@ the skeleton says exactly what to change.
 
 ## Secure by default
 
-The OmniNix NixOS module enforces these whether you use `mkFlake` or the
-builders directly:
+The OmniNix NixOS module enforces these whether you use the flake-parts module,
+`mkFlake`, or the builders directly:
 
 - **No privileged groups by default.** Active users get only
   `omninix.defaultUserGroups` (empty). Grant `wheel`/`docker` per user via
@@ -374,7 +424,8 @@ builders directly:
   `omninix.allowInsecureBootstrap = true;` and remove it once a password is set.
 - **Mutable users** (`users.mutableUsers = true`) so `passwd` works during
   bootstrap; override per host for fully declarative users.
-- **Unfree off by default.** `allowUnfree = true;` opts the whole flake in.
+- **Unfree off by default.** `omninix.allowUnfree = true;` (or `allowUnfree` for
+  `mkFlake`) opts the whole flake in.
 
 ### Secrets (sops-nix)
 
@@ -448,8 +499,8 @@ NixOS hosts.)
 
 ### Packages
 
-Point `mkFlake` at `packagesDir = ./packages;`. Every `.nix` there is
-`callPackage`-d into `packages.<system>.<name>` **and** added to `pkgs` on every
+Set `omninix.packagesDir = ./packages;` (or `packagesDir` for `mkFlake`). Every
+`.nix` there is `callPackage`-d into `packages.<system>.<name>` **and** added to `pkgs` on every
 host and home config (`pkgs.<name>`), so modules can use your packages without
 an overlay. That overlay runs before `overlaysDir`, so you can still override
 them there:
@@ -461,7 +512,7 @@ them there:
 
 ### Overlays
 
-Point `mkFlake` at `overlaysDir = ./overlays;`. Every `.nix` file there is one
+Set `omninix.overlaysDir = ./overlays;` (or `overlaysDir` for `mkFlake`). Every `.nix` file there is one
 overlay, applied in name order to every host, home config and package build:
 
 ```nix
@@ -523,12 +574,12 @@ turn it on with a flag.
 ```
 
 **Fleet-wide (every host / every user):** drop a wrapper file into
-`nixosModulesDir` or `homeManagerModulesDir` and point `mkFlake` at it. Every
-`.nix` there is imported into *all* hosts (or all users) automatically.
+`nixosModulesDir` or `homeManagerModulesDir`. Every `.nix` there is imported
+into *all* hosts (or all users) automatically.
 
 ```nix
-# flake.nix
-omninix.lib.omninix.mkFlake inputs {
+# flake.nix (flake-parts; same names as mkFlake arguments)
+omninix = {
   hostsDir              = ./hosts;
   nixosModulesDir       = ./modules/nixos;   # every .nix → every host
   homeManagerModulesDir = ./modules/home;    # every .nix → every user's HM
