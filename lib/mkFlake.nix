@@ -212,8 +212,15 @@
       else {};
 
     # Expose packagesDir as pkgs.<name> on hosts, home configs and package
-    # builds. Applied first so overlaysDir can still override them.
-    packagesOverlay = pfinal: _: final.mapAttrs (_: path: pfinal.callPackage path {}) discoveredPackages;
+    # builds. Applied first so overlaysDir can still override them. A package
+    # that takes `inputs` gets the consumer's flake inputs (self included);
+    # only requested args are passed, since callPackage rejects unknown ones.
+    packagesOverlay = pfinal: _:
+      final.mapAttrs (
+        _: path:
+          pfinal.callPackage path (builtins.intersectAttrs (final.functionArgs (import path)) {inherit inputs;})
+      )
+      discoveredPackages;
 
     overlays = final.optional (discoveredPackages != {}) packagesOverlay ++ userOverlays;
 
@@ -268,10 +275,13 @@
           final.omninix.mkHomeConfigurations (sharedArgs // {inherit userSystems;})
         );
       };
-      # packagesDir packages read from a pkgsFor result.
+      # packagesDir packages read from a pkgsFor result, minus those whose
+      # meta.platforms exclude this system (they stay available as pkgs.<name>).
       packagesOf = pkgs:
         debugTrace "Building ${toString (builtins.length (builtins.attrNames discoveredPackages))} package(s) for ${pkgs.stdenv.hostPlatform.system}" (
-          final.mapAttrs (name: _: pkgs.${name}) discoveredPackages
+          final.filterAttrs (_: final.meta.availableOn pkgs.stdenv.hostPlatform) (
+            final.mapAttrs (name: _: pkgs.${name}) discoveredPackages
+          )
         );
     };
 }

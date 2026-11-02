@@ -65,6 +65,24 @@ in {
     expected = [system];
   };
 
+  # Packages asking for `inputs` get the consumer's (consumerInputs has marker).
+  testMkFlakePackageGetsInputs = {
+    expr = builtins.readFile viaMkFlake.packages.${system}.inputs-fixture;
+    expected = "true";
+  };
+
+  # meta.platforms filters packages.<system>, but pkgs.<name> remains.
+  testMkFlakePackagesFilteredByPlatform = {
+    expr = {
+      output = viaMkFlake.packages.${system} ? other-platform-fixture;
+      pkgs = viaMkFlake.nixosConfigurations.test.pkgs ? other-platform-fixture;
+    };
+    expected = {
+      output = false;
+      pkgs = true;
+    };
+  };
+
   testMkFlakePackagesMatchHostPkgs = {
     expr = viaMkFlake.packages.${system}.hello-fixture.drvPath;
     expected = viaMkFlake.nixosConfigurations.test.pkgs.hello-fixture.drvPath;
@@ -126,7 +144,7 @@ in {
     .${
         system
       };
-    expected = ["extra" "hello-fixture"];
+    expected = ["extra" "hello-fixture" "inputs-fixture"];
   };
 
   testFlakeModuleLocalPackageWins = {

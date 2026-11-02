@@ -19,6 +19,20 @@ You get it in two places:
   can use it directly. No overlay to write.
 - **`packages.<system>.hello`** as a flake output (`nix build .#hello`).
 
+A package that takes `inputs` gets your flake's inputs, `self` included, for
+when it is built from the flake's own outputs:
+
+```nix
+# packages/image.nix
+{callPackage, inputs}:
+callPackage ../image {
+  inherit (inputs.self.homeConfigurations.alice) activationPackage;
+}
+```
+
+A package whose `meta.platforms` excludes a system is left out of
+`packages.<system>` there (it is still `pkgs.<name>`).
+
 ## Overriding nixpkgs
 
 ```nix
