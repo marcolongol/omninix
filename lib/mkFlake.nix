@@ -74,6 +74,54 @@
     allowUnfree ? false,
     debug ? false,
   }: let
+    core = final.omninix.mkFlakeCore inputs {
+      inherit
+        hostsDir
+        rolesDir
+        extraRoles
+        usersDir
+        profilesDir
+        extraProfiles
+        nixosModulesDir
+        homeManagerModulesDir
+        overlaysDir
+        packagesDir
+        secretsPath
+        defaultSystem
+        hostSystems
+        userSystems
+        allowUnfree
+        debug
+        ;
+    };
+  in
+    assert final.omninix.assertAllStrings "systems" systems;
+      core.outputs
+      # Auto-discovered packages: packages.<system>.<name>, read from the same
+      # overlaid pkgs the hosts use. Only emitted when packagesDir is provided.
+      // final.optionalAttrs core.hasPackages {
+        packages = final.genAttrs systems (system: core.packagesOf (core.pkgsFor system));
+      };
+
+  # Engine shared by mkFlake and flakeModules.default. Internal, unstable shape.
+  mkFlakeCore = inputs: {
+    hostsDir,
+    rolesDir,
+    extraRoles,
+    usersDir,
+    profilesDir,
+    extraProfiles,
+    nixosModulesDir,
+    homeManagerModulesDir,
+    overlaysDir,
+    packagesDir,
+    secretsPath,
+    defaultSystem,
+    hostSystems,
+    userSystems,
+    allowUnfree,
+    debug,
+  }: let
     debugTrace = final.omninix.mkDebugTrace debug;
     inherit (final.omninix) validatePath validateOptionalPath;
 
@@ -167,6 +215,12 @@
 
     overlays = final.optional (discoveredPackages != {}) packagesOverlay ++ userOverlays;
 
+    pkgsFor = system:
+      import inputs.nixpkgs {
+        inherit system overlays;
+        config.allowUnfree = allowUnfree;
+      };
+
     # Args shared by both builders, so the discovered directories and
     # global settings are spelled out once. Each builder adds its own
     # specifics on top (hosts/roles/nixosModules for NixOS). `inputs` is the
@@ -184,7 +238,6 @@
     # binding would never be forced under laziness (the previous no-hosts check
     # was silently dead).
     assert final.omninix.assertIsString "defaultSystem" defaultSystem;
-    assert final.omninix.assertAllStrings "systems" systems;
     assert (dirs ? hosts && dirs.hosts != {})
     || throw ''
       OmniNix Error: No hosts found in hostsDir!
@@ -192,43 +245,30 @@
 
       Make sure you have at least one .nix file or directory with default.nix
       in your hosts directory.
-    '';
-    {
-      inherit (dirs) hosts roles profiles users;
-    # Build all NixOS configurations from discovered files
-    # This is the final output that goes into your flake's outputs
-    nixosConfigurations = debugTrace "Building NixOS configurations..." (
-      final.omninix.mkNixosConfigurations (sharedArgs
-        // {
-          inherit (dirs) hosts;
-          inherit hostSystems;
-          roles = dirs.roles or {};
-          nixosModules = dirs.nixosModules or {};
-        })
-    );
-    # Build standalone Home Manager configurations from the same
-    # discovered users/profiles, for use on machines that already have
-    # Home Manager but no NixOS: `home-manager switch --flake .#<user>`.
-    # Empty when no users or no home-manager input are present.
-    homeConfigurations = debugTrace "Building home configurations..." (
-      final.omninix.mkHomeConfigurations (sharedArgs // {inherit userSystems;})
-    );
-  }
-  # Auto-discovered packages: every .nix file in packagesDir becomes
-  # packages.<system>.<name>, read from the same overlaid pkgs the hosts use.
-  # Only emitted when packagesDir is provided.
-  // final.optionalAttrs (validatedPackagesDir != null) {
-    packages =
-      final.genAttrs systems (
-        system: let
-          pkgs = import inputs.nixpkgs {
-            inherit system overlays;
-            config.allowUnfree = allowUnfree;
-          };
-        in
-          debugTrace "Building ${toString (builtins.length (builtins.attrNames discoveredPackages))} package(s) for ${system}" (
-            final.mapAttrs (name: _: pkgs.${name}) discoveredPackages
-          )
-      );
-  };
+    ''; {
+      inherit pkgsFor;
+      hasPackages = validatedPackagesDir != null;
+      outputs = {
+        inherit (dirs) hosts roles profiles users;
+        # Build all NixOS configurations from discovered files
+        nixosConfigurations = debugTrace "Building NixOS configurations..." (
+          final.omninix.mkNixosConfigurations (sharedArgs
+            // {
+              inherit (dirs) hosts;
+              inherit hostSystems;
+              roles = dirs.roles or {};
+              nixosModules = dirs.nixosModules or {};
+            })
+        );
+        # Standalone Home Manager configurations from the same users/profiles.
+        homeConfigurations = debugTrace "Building home configurations..." (
+          final.omninix.mkHomeConfigurations (sharedArgs // {inherit userSystems;})
+        );
+      };
+      # packagesDir packages read from a pkgsFor result.
+      packagesOf = pkgs:
+        debugTrace "Building ${toString (builtins.length (builtins.attrNames discoveredPackages))} package(s) for ${pkgs.stdenv.hostPlatform.system}" (
+          final.mapAttrs (name: _: pkgs.${name}) discoveredPackages
+        );
+    };
 }

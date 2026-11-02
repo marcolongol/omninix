@@ -21,7 +21,7 @@
 #   mkNixosConfigurations.nix  - mkNixosConfigurations
 #   mkHomeModules.nix          - mkHomeModules (shared per-user HM module set)
 #   mkHomeConfigurations.nix   - mkHomeConfigurations (standalone HM)
-#   mkFlake.nix                - mkFlake (high-level entry point)
+#   mkFlake.nix                - mkFlake (high-level entry point) + internal mkFlakeCore engine
 {inputs}: let
   # Extend the Nixpkgs lib with OmniNix custom functions. `final` is the fixpoint
   # of the extended lib; each fragment receives what it needs (the fixpoint

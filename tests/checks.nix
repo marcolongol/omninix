@@ -20,7 +20,8 @@
   # to evaluate NixOS-on-darwin for the darwin systems and fail.
   evalTests =
     (import ./lib-tests.nix {inherit omninix lib;})
-    // (lib.optionalAttrs isLinux (import ./config-tests.nix {inherit inputs omninix lib system;}));
+    // (lib.optionalAttrs isLinux (import ./config-tests.nix {inherit inputs omninix lib system;}))
+    // (lib.optionalAttrs isLinux (import ./flake-tests.nix {inherit inputs omninix lib system;}));
 
   failures = lib.runTests evalTests;
 

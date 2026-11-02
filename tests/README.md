@@ -17,6 +17,7 @@ nix flake check                 # eval checks + VM test (no template smoke)
 | File | Layer | What it covers |
 |------|-------|----------------|
 | `lib-tests.nix` | 1 — pure lib | `forAllNixFiles`/.nix filter, `mkDirMap`, `mapAttrsMaybe`, `pick`/`drop` (+ throw), `validations.assert*` |
+| `flake-tests.nix` | 2b — flake entry points | `mkFlake` output shape on `fixtures/flake`: output names, no `packages` without `packagesDir`, `systems` default, package drv == host `pkgs` drv |
 | `config-tests.nix` | 2 — config behaviour | Evaluates fixture hosts via `mkNixosConfigurations` and asserts on `config.*`: fail-closed passwords, opt-in groups, per-host `hostSystems`, impermanence integration assertion, `allowUnfree`, the `omninix.*` namespace |
 | `vm-test.nix` | 4 — integration | Boots a host with `runNixOSTest`; asserts the user is created, has `wheel`, lacks `docker`, has a home dir and a password hash |
 | `checks.nix` | harness | Aggregates the eval suites into `checks.<system>.eval` (fails, printing offending cases, if any test ≠ expected) and exposes `checks.<system>.vm` on Linux |
@@ -25,7 +26,7 @@ nix flake check                 # eval checks + VM test (no template smoke)
 
 ## How the eval checks fail
 
-`checks.<system>.eval` runs `lib.runTests` over Layers 1 + 2. `runTests` returns
+`checks.<system>.eval` runs `lib.runTests` over Layers 1, 2 and 2b. `runTests` returns
 the list of cases whose `expr` differs from `expected`; the derivation builds
 iff that list is empty, otherwise it prints each failing case (name, expected,
 got) and exits non-zero. No `|| true`, no unconditional "passed".
