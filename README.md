@@ -313,8 +313,9 @@ home-manager.users = lib.genAttrs config.omninix.activeUsers (_: {
 }
 ```
 
-OmniNix ships **no roles** — they're all yours. The template starts you with a
-`common` role and an example `impermanent` role (see Impermanence below) to copy.
+OmniNix ships one role, `omninix.roles.impermanent` (see Impermanence below);
+the rest are yours. The template starts you with a `common` role and pulls in
+the shipped ones via `extraRoles = omninix.roles`.
 
 ### Users — *who* uses it
 
@@ -467,10 +468,10 @@ module](#bringing-your-own-modules) — import it, declare your secret, point
 
 ### Impermanence (persistence aggregation)
 
-OmniNix ships no impermanence role in the *library* — the role is opinion (which
-base dirs, which `/persist` backend), so it's yours to own. What OmniNix provides
-is the one piece you can't do in userland: the **`omninix.persistence.*`
-aggregation**. Any role, host, user, or profile declares what it needs persisted:
+Two pieces: the **`omninix.persistence.*` aggregation**, and a shipped
+**`roles.impermanent`** role that turns it into a `/persist` store (plus an
+optional btrfs root wipe). Any role, host, user, or profile declares what it
+needs persisted:
 
 ```nix
 omninix.persistence.directories = [ ".ssh" "/var/lib/docker" ];
@@ -478,7 +479,7 @@ omninix.persistence.files       = [ ".kube/config" ];
 ```
 
 - **System-level** contributions (from roles/hosts) are read into
-  `environment.persistence."/persist"` by your impermanence role.
+  `environment.persistence."/persist"` by the impermanent role.
 - **User-level** contributions (from users/profiles) are wired into
   `home.persistence."/persist"` **for you** by the NixOS+HM bridge — relativized
   per user (`/persist/home/<user>`), and gated on the host actually having a
@@ -486,16 +487,62 @@ omninix.persistence.files       = [ ".kube/config" ];
   import can't reach. The bridge keys on `/persist` being enabled, **not** on the
   role's name — call your role whatever you like.
 
-**You don't have to write the role from scratch.** `nix flake init` scaffolds a
-ready-to-own one at `roles/impermanent.nix` that reads the aggregation above. To
-turn it on:
+#### `roles.impermanent`
 
-1. Uncomment the `impermanence` input in `flake.nix`.
-2. Set `roles.impermanent.enable = true;` on the host.
+Comes in through `extraRoles = omninix.roles` (the template does this). It
+needs impermanence's NixOS module, which you import **once** yourself (a second
+import is a hard error), and a `/persist` mount:
 
-Edit the base-dir list in that file to taste — it's yours. (Standalone
+```nix
+# hosts/laptop/default.nix
+{ inputs, ... }: {
+  imports = [ inputs.impermanence.nixosModules.impermanence ];
+  roles.impermanent.enable = true;
+}
+```
+
+It persists `/var/log`, `/var/lib/nixos`, `/etc/ssh`, `/etc/machine-id`,
+`/var/lib/bluetooth` and NetworkManager connections when those services are on,
+`/var/lib/systemd/coredump` with `persistCoredumps = true`, plus everything in
+`omninix.persistence.*`, and sets `/persist` `neededForBoot`. (Standalone
 `homeConfigurations` have no `osConfig`, so user persistence applies only on
 NixOS hosts.)
+
+#### Root wipe (`roles.impermanent.wipe`)
+
+```nix
+roles.impermanent.wipe = {
+  enable = true;
+  acknowledgeDataLoss = true;            # required
+  # device = "/dev/disk/by-label/nixos"; # default: fileSystems."/".device
+  # keepDays = 30;                       # archived roots kept this long
+};
+```
+
+On every boot an initrd unit archives the btrfs root subvolume to
+`old_roots/<timestamp>`, creates an empty one, then prunes archives older than
+`keepDays`. The root subvolume is taken from `fileSystems."/"`'s `subvol=` and
+is not configurable; the build refuses `subvolid=`-only roots, the top level,
+nested names, and any other mount that uses the root subvolume. The unit never
+leaves the disk without a root: if anything fails it keeps or restores the
+previous root, and `rollback-root-check` shows up in `systemctl --failed`.
+Requires btrfs and `boot.initrd.systemd.enable`.
+
+**Turning it on for an existing machine deletes everything not in `/persist` on
+the next boot**, including SSH host keys (sops then can't decrypt) and
+`machine-id`. Roll out in steps:
+
+1. Enable `roles.impermanent` (without `wipe`) and switch.
+2. Copy the live state into `/persist`:
+   `cp -a /etc/ssh/ssh_host_* /persist/etc/ssh/ && cp /etc/machine-id /persist/etc/`
+   (plus anything else you need).
+3. Reboot and check that sops secrets still decrypt and you can log in.
+4. Only then enable `wipe` (with `acknowledgeDataLoss = true`), switch, and
+   reboot with a live USB at hand.
+
+**Recovering from a live USB:** `mount -o subvolid=5 /dev/<root> /mnt`, then
+`mv /mnt/old_roots/<newest> /mnt/root` (or `btrfs subvolume create /mnt/root`),
+unmount and reboot.
 
 ### Packages
 

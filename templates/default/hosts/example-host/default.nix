@@ -29,8 +29,11 @@
     # desktop.enable = true;     # example role in roles/desktop/ — also
     #                            # configures every user's home (see home.nix)
     # gaming.enable = true;
-    # impermanent.enable = true;   # example role in roles/impermanent.nix —
-    #                              # also uncomment the impermanence input in flake.nix
+    # impermanent.enable = true;   # omninix.roles.impermanent: ephemeral root, /persist kept.
+    #                              # Uncomment the impermanence input in flake.nix and add
+    #                              # imports = [inputs.impermanence.nixosModules.impermanence];
+    #                              # Optional btrfs root wipe, after seeding /persist (README):
+    #                              # impermanent.wipe = { enable = true; acknowledgeDataLoss = true; };
   };
 
   # Users who can access this host (enable-based).

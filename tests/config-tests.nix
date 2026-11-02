@@ -200,18 +200,6 @@ in {
     expected = true;
   };
 
-  # The template impermanent role fails eval when enabled without its input.
-  testImpermanentTemplateNeedsInput = {
-    expr = hasFailingAssertion "impermanence` flake input is missing" (evalHost {
-      roles.impermanent = ../templates/default/roles/impermanent.nix;
-      module = {...}: {
-        imports = [bootstrapUser];
-        roles.impermanent.enable = true;
-      };
-    });
-    expected = true;
-  };
-
   # --- roles/impermanent.nix ----------------------------------------------
 
   testImpermanentBaseSet = {
@@ -251,19 +239,52 @@ in {
       u = (wipeHost {}).boot.initrd.systemd.services.rollback-root;
     in {
       inherit (u) requires after before wantedBy;
-      dropsRoot = lib.hasInfix "mv /tmp/root \"/tmp/old_roots/$timestamp\"" u.script;
-      recreatesRoot = lib.hasInfix "btrfs subvolume create /tmp/root" u.script;
-      prunes = lib.hasInfix "-mtime +30" u.script;
+      topLevelMount = lib.hasInfix "mount -t btrfs -o subvolid=5 /dev/disk/by-label/nixos /run/rollback-root" u.script;
+      archivesRoot = lib.hasInfix "mv -T /run/rollback-root/root \"$dst\"" u.script;
+      restoresOnCreateFailure = lib.hasInfix "|| { mv -T \"$dst\" /run/rollback-root/root;" u.script;
+      prunesOnlySubvolumes = lib.hasInfix "btrfs subvolume show \"$i\"" u.script;
+      prunes = lib.hasInfix "-mindepth 1 -maxdepth 1 -mtime +30" u.script;
+      noDeviceCheck = !(lib.hasInfix "is not the root device" u.script);
+      noHostKeyCondition = !(u.unitConfig ? ConditionPathExists);
     };
     expected = {
       requires = ["dev-disk-by\\x2dlabel-nixos.device"];
-      after = ["dev-disk-by\\x2dlabel-nixos.device"];
+      after = ["dev-disk-by\\x2dlabel-nixos.device" "systemd-hibernate-resume.service"];
       before = ["sysroot.mount"];
       wantedBy = ["initrd.target"];
-      dropsRoot = true;
-      recreatesRoot = true;
+      topLevelMount = true;
+      archivesRoot = true;
+      restoresOnCreateFailure = true;
+      prunesOnlySubvolumes = true;
       prunes = true;
+      noDeviceCheck = true;
+      noHostKeyCondition = true;
     };
+  };
+
+  # A wipe.device override waits for both devices and checks they match at runtime.
+  testImpermanentWipeDeviceOverrideChecked = {
+    expr = let
+      u = (wipeHost {roles.impermanent.wipe.device = "/dev/disk/by-label/other";}).boot.initrd.systemd.services.rollback-root;
+    in {
+      inherit (u) requires;
+      checks = lib.hasInfix "is not the root device" u.script;
+    };
+    expected = {
+      requires = ["dev-disk-by\\x2dlabel-other.device" "dev-disk-by\\x2dlabel-nixos.device"];
+      checks = true;
+    };
+  };
+
+  testImpermanentWipeRejectsNonDevDevice = {
+    expr = hasFailingAssertion "must be a /dev path" (wipeHost {roles.impermanent.wipe.device = "LABEL=nixos";});
+    expected = true;
+  };
+
+  # A failed or skipped wipe is surfaced after boot.
+  testImpermanentWipeFailureReported = {
+    expr = (wipeHost {}).systemd.services.rollback-root-check.unitConfig.ConditionPathExists;
+    expected = "/run/rollback-root.failed";
   };
 
   testImpermanentWipeNeedsAcknowledgement = {

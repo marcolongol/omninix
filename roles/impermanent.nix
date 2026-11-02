@@ -36,8 +36,14 @@
   config.fileSystems);
 
   sv = lib.escapeShellArg target;
+  mnt = "/run/rollback-root";
+  failed = "/run/rollback-root.failed";
   dev = lib.escapeShellArg cfg.wipe.device;
-  deviceUnit = "${utils.escapeSystemdPath cfg.wipe.device}.device";
+  deviceUnit = d: "${utils.escapeSystemdPath d}.device";
+  rootDevice = root.device or null;
+  # A wipe.device override must resolve to the same block device as /.
+  checkRootDevice = rootDevice != null && rootDevice != cfg.wipe.device;
+  waitFor = [(deviceUnit cfg.wipe.device)] ++ lib.optional checkRootDevice (deviceUnit rootDevice);
 in {
   options.roles.impermanent = {
     enable = lib.mkEnableOption "ephemeral root with a persistent /persist";
@@ -105,8 +111,8 @@ in {
           message = "roles.impermanent.wipe: requires boot.initrd.systemd.enable.";
         }
         {
-          assertion = cfg.wipe.device != null;
-          message = "roles.impermanent.wipe: set wipe.device (fileSystems.\"/\".device is unset).";
+          assertion = cfg.wipe.device != null && lib.hasPrefix "/dev/" cfg.wipe.device;
+          message = "roles.impermanent.wipe: wipe.device must be a /dev path (fileSystems.\"/\".device is unset).";
         }
         {
           assertion = targetValid;
@@ -118,38 +124,66 @@ in {
         }
       ];
 
+      # Invariant: a root subvolume exists whenever this unit exits. Any failure
+      # boots the previous root and is reported by rollback-root-check.
       boot.initrd.systemd.services.rollback-root = {
         description = "Rollback btrfs root subvolume";
         wantedBy = ["initrd.target"];
-        requires = [deviceUnit];
-        after = [deviceUnit];
+        requires = waitFor;
+        after = waitFor ++ ["systemd-hibernate-resume.service"];
         before = ["sysroot.mount"];
         unitConfig.DefaultDependencies = "no";
         serviceConfig.Type = "oneshot";
         script = ''
-          mkdir -p /tmp
-          mount -t btrfs ${dev} /tmp
+          trap 'touch ${failed}' ERR
+          ${lib.optionalString checkRootDevice ''
+            if [[ "$(readlink -f ${dev})" != "$(readlink -f ${lib.escapeShellArg rootDevice})" ]]; then
+                echo "rollback-root: ${cfg.wipe.device} is not the root device; not wiping" >&2
+                touch ${failed}; exit 1
+            fi
+          ''}
+          mkdir -p ${mnt}
+          mount -t btrfs -o subvolid=5 ${dev} ${mnt}
 
-          if [[ -e /tmp/${sv} ]]; then
-              mkdir -p /tmp/old_roots
-              timestamp=$(date --date="@$(stat -c %Y /tmp/${sv})" "+%Y-%m-%-d_%H:%M:%S")
-              mv /tmp/${sv} "/tmp/old_roots/$timestamp"
+          if [[ -e ${mnt}/${sv} ]]; then
+              mkdir -p ${mnt}/old_roots
+              timestamp=$(date --date="@$(stat -c %Y ${mnt}/${sv})" "+%Y-%m-%d_%H:%M:%S")
+              dst="${mnt}/old_roots/$timestamp"; n=0
+              while [[ -e "$dst" ]]; do n=$((n + 1)); dst="${mnt}/old_roots/$timestamp.$n"; done
+              mv -T ${mnt}/${sv} "$dst"
+              btrfs subvolume create ${mnt}/${sv} || { mv -T "$dst" ${mnt}/${sv}; touch ${failed}; umount ${mnt}; exit 1; }
+          else
+              btrfs subvolume create ${mnt}/${sv}
           fi
 
           delete_subvolume_recursively() {
-              IFS=$'\n'
+              local IFS=$'\n' i
               for i in $(btrfs subvolume list -o "$1" | cut -f 9- -d ' '); do
-                  delete_subvolume_recursively "/tmp/$i"
+                  delete_subvolume_recursively "${mnt}/$i"
               done
               btrfs subvolume delete "$1"
           }
 
-          for i in $(find /tmp/old_roots/ -maxdepth 1 -mtime +${toString cfg.wipe.keepDays}); do
-              delete_subvolume_recursively "$i"
-          done
+          # Prune last and never fatally; only real subvolumes inside old_roots.
+          while IFS= read -r -d "" i; do
+              if btrfs subvolume show "$i" >/dev/null 2>&1; then
+                  delete_subvolume_recursively "$i" || echo "rollback-root: could not prune $i" >&2
+              fi
+          done < <(find ${mnt}/old_roots -mindepth 1 -maxdepth 1 -mtime +${toString cfg.wipe.keepDays} -print0 2>/dev/null)
 
-          btrfs subvolume create /tmp/${sv}
-          umount /tmp
+          umount ${mnt}
+        '';
+      };
+
+      # Stage 2: surface a skipped or failed wipe in systemctl --failed.
+      systemd.services.rollback-root-check = {
+        description = "Report a failed btrfs root rollback";
+        wantedBy = ["multi-user.target"];
+        unitConfig.ConditionPathExists = failed;
+        serviceConfig.Type = "oneshot";
+        script = ''
+          echo "rollback-root did not complete in the initrd; this boot uses the previous root. Check: journalctl -b -u rollback-root" >&2
+          exit 1
         '';
       };
     })

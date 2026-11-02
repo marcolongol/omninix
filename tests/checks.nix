@@ -58,4 +58,5 @@ in
   }
   // lib.optionalAttrs isLinux {
     vm = import ./vm-test.nix {inherit pkgs inputs lib;};
+    vm-impermanent = import ./vm-impermanent.nix {inherit pkgs inputs lib;};
   }

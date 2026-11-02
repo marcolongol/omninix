@@ -128,8 +128,9 @@ Enable it for a user: `profiles.my-profile.enable = true;`
 
 Ecosystem modules (impermanence, disko, stylix) are plain modules: declare the
 input in `flake.nix` and import it in a host, role, or `modules/nixos/*.nix`.
-`roles/impermanent.nix` imports impermanence itself and fails the build if the
-role is enabled without the input.
+Import each one **once**: impermanence's module can't be imported twice. The
+shipped `omninix.roles.impermanent` role uses impermanence but never imports it,
+and fails the build with a clear message if it's enabled without it.
 
 ## Unfree Packages
 
