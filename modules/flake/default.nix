@@ -1,6 +1,7 @@
 {
   self,
   inputs,
+  flake-parts-lib,
   ...
 }: let
   # Single instantiation of the OmniNix-extended lib for this flake. It is built
@@ -14,7 +15,13 @@
     roles = ../../roles;
   };
 in {
+  # Typed flake.flakeModules (adds key/_class for dedup).
+  imports = [inputs.flake-parts.flakeModules.flakeModules];
+
   flake = {
+    # Consumer flake-parts module over mkFlakeCore.
+    flakeModules.default = flake-parts-lib.importApply ../flake-parts {omninixLib = lib;};
+
     # Expose the library
     inherit lib;
     # Expose global roles and profiles
