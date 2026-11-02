@@ -58,6 +58,38 @@
     module = {...}: {omninix.hostUsers.alice.enable = true;};
     secretsPath = secretsFixture;
   };
+
+  # A btrfs-root host with the role on; `extra` adds/overrides per test.
+  impHost = extra:
+    evalHost {
+      roles.impermanent = ../roles/impermanent.nix;
+      module = {lib, ...}: {
+        imports = [./stubs/impermanence.nix extra];
+        boot.initrd.systemd.enable = true;
+        fileSystems."/" = {
+          device = "/dev/disk/by-label/nixos";
+          fsType = "btrfs";
+          options = ["subvol=/root"];
+        };
+        fileSystems."/persist" = {
+          device = "/dev/disk/by-label/persist";
+          fsType = "ext4";
+        };
+        roles.impermanent.enable = true;
+      };
+    };
+
+  # Same host with the wipe on and acknowledged.
+  wipeHost = extra:
+    impHost {
+      imports = [extra];
+      roles.impermanent.wipe = {
+        enable = true;
+        acknowledgeDataLoss = true;
+      };
+    };
+
+  persisted = cfg: {inherit (cfg.environment.persistence."/persist") directories files hideMounts;};
 in {
   # --- security model (B1/H4/M9/G2) ----------------------------------------
 
@@ -178,6 +210,166 @@ in {
       };
     });
     expected = true;
+  };
+
+  # --- roles/impermanent.nix ----------------------------------------------
+
+  testImpermanentBaseSet = {
+    expr = persisted (impHost {});
+    expected = {
+      directories = ["/var/log" "/var/lib/nixos" "/etc/ssh"];
+      files = ["/etc/machine-id"];
+      hideMounts = true;
+    };
+  };
+
+  # Service-dependent paths, in the order nix-config relies on for parity.
+  testImpermanentConditionalDirs = {
+    expr =
+      (persisted (impHost {
+        hardware.bluetooth.enable = true;
+        networking.networkmanager.enable = true;
+        roles.impermanent.persistCoredumps = true;
+        omninix.persistence.directories = ["/var/lib/docker"];
+      }))
+      .directories;
+    expected = ["/var/log" "/var/lib/bluetooth" "/var/lib/nixos" "/var/lib/systemd/coredump" "/etc/NetworkManager/system-connections" "/etc/ssh" "/var/lib/docker"];
+  };
+
+  testImpermanentPersistNeededForBoot = {
+    expr = (impHost {}).fileSystems."/persist".neededForBoot;
+    expected = true;
+  };
+
+  testImpermanentNoWipeByDefault = {
+    expr = (impHost {}).boot.initrd.systemd.services ? rollback-root;
+    expected = false;
+  };
+
+  testImpermanentWipeUnit = {
+    expr = let
+      u = (wipeHost {}).boot.initrd.systemd.services.rollback-root;
+    in {
+      inherit (u) requires after before wantedBy;
+      dropsRoot = lib.hasInfix "mv /tmp/root \"/tmp/old_roots/$timestamp\"" u.script;
+      recreatesRoot = lib.hasInfix "btrfs subvolume create /tmp/root" u.script;
+      prunes = lib.hasInfix "-mtime +30" u.script;
+    };
+    expected = {
+      requires = ["dev-disk-by\\x2dlabel-nixos.device"];
+      after = ["dev-disk-by\\x2dlabel-nixos.device"];
+      before = ["sysroot.mount"];
+      wantedBy = ["initrd.target"];
+      dropsRoot = true;
+      recreatesRoot = true;
+      prunes = true;
+    };
+  };
+
+  testImpermanentWipeNeedsAcknowledgement = {
+    expr = hasFailingAssertion "acknowledgeDataLoss" (impHost {roles.impermanent.wipe.enable = true;});
+    expected = true;
+  };
+
+  testImpermanentWipeAcknowledgedPasses = {
+    expr = builtins.filter (a: !a.assertion && lib.hasInfix "roles.impermanent" a.message) (wipeHost {}).assertions;
+    expected = [];
+  };
+
+  # Each derived-target hazard fails closed.
+  testImpermanentWipeRejectsSubvolidOnly = {
+    expr = hasFailingAssertion "exactly one top-level subvolume" (wipeHost {fileSystems."/".options = lib.mkForce ["subvolid=256"];});
+    expected = true;
+  };
+
+  testImpermanentWipeRejectsTopLevel = {
+    expr = hasFailingAssertion "exactly one top-level subvolume" (wipeHost {fileSystems."/".options = lib.mkForce ["subvol=/"];});
+    expected = true;
+  };
+
+  testImpermanentWipeRejectsNestedTarget = {
+    expr = hasFailingAssertion "exactly one top-level subvolume" (wipeHost {fileSystems."/".options = lib.mkForce ["subvol=/a/root"];});
+    expected = true;
+  };
+
+  testImpermanentWipeRejectsTwoSubvols = {
+    expr = hasFailingAssertion "exactly one top-level subvolume" (wipeHost {fileSystems."/".options = lib.mkForce ["subvol=/root" "subvol=/other"];});
+    expected = true;
+  };
+
+  # dt shape: /persist as a btrfs subvolume beside root is fine...
+  testImpermanentWipeSiblingPersistOk = {
+    expr = hasFailingAssertion "also mounted at" (wipeHost {
+      fileSystems."/persist" = lib.mkForce {
+        device = "/dev/disk/by-label/nixos";
+        fsType = "btrfs";
+        options = ["subvol=/persist"];
+      };
+    });
+    expected = false;
+  };
+
+  # ...but a mount of the root subvolume itself, or one nested in it, is refused.
+  testImpermanentWipeRejectsPersistOnRootSubvol = {
+    expr = hasFailingAssertion "also mounted at /persist" (wipeHost {
+      fileSystems."/persist" = lib.mkForce {
+        device = "/dev/disk/by-label/nixos";
+        fsType = "btrfs";
+        options = ["subvol=/root"];
+      };
+    });
+    expected = true;
+  };
+
+  testImpermanentWipeRejectsPersistNestedInRoot = {
+    expr = hasFailingAssertion "also mounted at /persist" (wipeHost {
+      fileSystems."/persist" = lib.mkForce {
+        device = "/dev/disk/by-label/nixos";
+        fsType = "btrfs";
+        options = ["subvol=/root/persist"];
+      };
+    });
+    expected = true;
+  };
+
+  testImpermanentWipeRejectsNonBtrfs = {
+    expr = hasFailingAssertion "must be btrfs" (wipeHost {fileSystems."/".fsType = lib.mkForce "ext4";});
+    expected = true;
+  };
+
+  testImpermanentWipeRequiresSystemdInitrd = {
+    expr = hasFailingAssertion "boot.initrd.systemd.enable" (wipeHost {boot.initrd.systemd.enable = lib.mkForce false;});
+    expected = true;
+  };
+
+  # Without impermanence's module the role refuses to enable, and is inert when off.
+  testImpermanentNeedsImpermanenceModule = {
+    expr = hasFailingAssertion "needs impermanence's NixOS module" (evalHost {
+      roles.impermanent = ../roles/impermanent.nix;
+      module = {...}: {
+        fileSystems."/persist" = {
+          device = "/dev/disk/by-label/persist";
+          fsType = "ext4";
+        };
+        roles.impermanent.enable = true;
+      };
+    });
+    expected = true;
+  };
+
+  testImpermanentInertWhenOff = {
+    expr =
+      (evalHost {
+        roles.impermanent = ../roles/impermanent.nix;
+        module = {...}: {};
+      }).fileSystems ? "/persist";
+    expected = false;
+  };
+
+  # Importing the role file twice dedups (same path).
+  testImpermanentDoubleImport = {
+    expr = (persisted (impHost {imports = [../roles/impermanent.nix];})).files;
+    expected = ["/etc/machine-id"];
   };
 
   # --- roles with a home side ----------------------------------------------
