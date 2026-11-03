@@ -208,7 +208,7 @@ in {
           userName: let
             imports =
               mkHomeModules {
-                inherit inputs lib profiles homeManagerModules;
+                inherit inputs lib profiles homeManagerModules userName secretsPath;
                 userFile = users.${userName} or null;
               }
               ++ lib.optional (inputs ? impermanence) impermanenceHomeModule;

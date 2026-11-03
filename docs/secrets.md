@@ -24,6 +24,7 @@ OmniNix then wires sops for you:
 | File | Used for |
 |---|---|
 | `secrets/users/<user>.yaml`, key `hashed-password` | that user's login password, decrypted before users are created |
+| `secrets/users/<user>.yaml` | also that user's Home Manager default sops file (`mkDefault`, only if it exists) |
 | `secrets/<host>.yaml` | the host's default sops file (only if it exists) |
 | anything else, e.g. `secrets/shared.yaml` | whatever you point `sopsFile` at |
 
@@ -43,6 +44,10 @@ Declare other secrets as usual:
 sops.secrets.api-key = {};                                        # from secrets/<host>.yaml
 sops.secrets.db-password.sopsFile = ./secrets/shared.yaml;
 ```
+
+In a user or profile (Home Manager), `sops.secrets.<name> = {};` reads from
+`secrets/users/<user>.yaml`. Home Manager decrypts with the user's own key (for
+example `sops.gnupg.home` or `sops.age.keyFile`), which you set yourself.
 
 Without `secretsPath` (or without the `sops-nix` input), OmniNix doesn't touch
 anything secrets-related.

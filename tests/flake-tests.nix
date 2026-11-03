@@ -180,6 +180,22 @@ in {
     expected = {inherit (viaMkFlake) hosts users roles profiles;};
   };
 
+  # Standalone homeConfigurations get the same HM sops default.
+  testMkFlakeHomeSopsDefaultFile = {
+    expr =
+      toString (omninix.mkFlake consumerInputs (settings
+        // {
+          secretsPath = ./fixtures/secrets;
+          defaultSystem = system;
+        }))
+      .homeConfigurations
+      .alice
+      .config
+      .sops
+      .defaultSopsFile;
+    expected = toString (./fixtures/secrets + "/users/alice.yaml");
+  };
+
   testFlakeModuleUsesConsumerInputs = {
     expr = plain.nixosConfigurations.test._module.specialArgs.inputs ? marker;
     expected = true;

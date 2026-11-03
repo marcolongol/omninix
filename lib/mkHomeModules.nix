@@ -5,7 +5,7 @@
 {
   # Assemble the Home Manager module set for a single OmniNix user
   #
-  # Type: { inputs, lib, userFile?, profiles?, homeManagerModules?, ... } -> [Module]
+  # Type: { inputs, lib, userName?, userFile?, secretsPath?, profiles?, homeManagerModules?, ... } -> [Module]
   #
   # The modules that make up a user's home, shared by both consumers:
   #   - modules/nixos (home-manager.users.<name>.imports), and
@@ -13,7 +13,9 @@
   #
   # Returns, in order: the OmniNix home module, the user file (if any), the
   # optional sops-nix HM module (when that input exists), all profiles, all
-  # Home Manager modules, then any extraModules.
+  # Home Manager modules, then any extraModules. With `secretsPath` and a
+  # `secrets/users/<userName>.yaml` file, a small module also makes that file the
+  # user's default sops file (mkDefault).
   #
   # `inputs` is the consumer's flake inputs (for optional input detection).
   # `lib` is taken as a parameter (rather than closed over) so the NixOS
@@ -27,7 +29,9 @@
   mkHomeModules = {
     inputs,
     lib,
+    userName ? null,
     userFile ? null,
+    secretsPath ? null,
     profiles ? {},
     homeManagerModules ? {},
     omninixHomeModule ? ../modules/home,
@@ -36,6 +40,20 @@
     [(import omninixHomeModule)]
     ++ (lib.optionals (userFile != null) [(import userFile)])
     ++ (lib.optional (inputs ? sops-nix) inputs.sops-nix.homeManagerModules.sops)
+    # Passed by closure, not as a module arg, so it works without extraSpecialArgs.
+    ++ (lib.optional (secretsPath != null && userName != null && builtins.pathExists (secretsPath + "/users/${userName}.yaml")) (
+      {
+        lib,
+        options,
+        ...
+      }: {
+        # Under `config`: a top level that depends on `options` recurses.
+        config = lib.optionalAttrs (options ? sops.defaultSopsFile) {
+          sops.defaultSopsFile = lib.mkDefault (secretsPath + "/users/${userName}.yaml");
+          sops.defaultSopsFormat = lib.mkDefault "yaml";
+        };
+      }
+    ))
     ++ (lib.attrValues profiles)
     ++ (lib.attrValues homeManagerModules)
     ++ extraModules;

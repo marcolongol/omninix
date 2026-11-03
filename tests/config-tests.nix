@@ -491,6 +491,54 @@ in {
     expected = true;
   };
 
+  # The user's HM default sops file is their secrets/users/<name>.yaml.
+  testHomeSopsDefaultFile = {
+    expr = toString (evalHost aliceWithSecret).home-manager.users.alice.sops.defaultSopsFile;
+    expected = toString (secretsFixture + "/users/alice.yaml");
+  };
+
+  # No per-user file: no HM default either (sops-nix has none, so it stays undefined).
+  testHomeSopsNoFileNoDefault = {
+    expr =
+      (builtins.tryEval
+        (evalHost {
+          module = {...}: {omninix.hostUsers.bob.enable = true;};
+          secretsPath = secretsFixture;
+        })
+        .home-manager
+        .users
+        .bob
+        .sops
+        .defaultSopsFile)
+      .success;
+    expected = false;
+  };
+
+  # It reaches HM by closure, so it survives an empty extraSpecialArgs (the
+  # portability check's setup).
+  testHomeSopsDefaultWithoutSpecialArgs = {
+    expr = toString (evalHost {
+      inherit (aliceWithSecret) secretsPath;
+      module = {lib, ...}: {
+        omninix.hostUsers.alice.enable = true;
+        home-manager.extraSpecialArgs = lib.mkForce {};
+      };
+    }).home-manager.users.alice.sops.defaultSopsFile;
+    expected = toString (secretsFixture + "/users/alice.yaml");
+  };
+
+  # mkDefault: a user's own value wins.
+  testHomeSopsDefaultOverridable = {
+    expr = toString (evalHost {
+      inherit (aliceWithSecret) secretsPath;
+      module = {...}: {
+        omninix.hostUsers.alice.enable = true;
+        home-manager.users.alice.sops.defaultSopsFile = secretsFixture;
+      };
+    }).home-manager.users.alice.sops.defaultSopsFile;
+    expected = toString secretsFixture;
+  };
+
   # secretsPath set but NO per-user file present: wiring is skipped (no secret,
   # no password), so it must still fail closed rather than crash.
   testSopsMissingSecretFailsClosed = {

@@ -103,7 +103,7 @@
               modules =
                 [identityModule]
                 ++ final.omninix.mkHomeModules {
-                  inherit inputs;
+                  inherit inputs userName secretsPath;
                   lib = final;
                   userFile = userPath;
                   inherit profiles homeManagerModules extraModules omninixHomeModule;
