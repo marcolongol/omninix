@@ -50,6 +50,12 @@
 
   toplevel = c: c.nixosConfigurations.test.config.system.build.toplevel.drvPath;
 
+  # Portability check: names of the checks that fail for a set of pieces.
+  portable = ./fixtures/portable;
+  portableCheck = args: omninix.mkPortableCheck ({inherit inputs system;} // args);
+  failingChecks = checks: builtins.attrNames (lib.filterAttrs (_: d: !(builtins.tryEval d.drvPath).success) checks);
+  badRole = case: failingChecks (portableCheck {pieces.roles.x = portable + "/${case}/roles/x.nix";});
+
   # A consumer's own nixpkgs with the exported overlay (twice: shadowing).
   withOverlays = overlays: import inputs.nixpkgs {inherit system overlays;};
   consumerPkgs = withOverlays [viaMkFlake.overlays.packages];
@@ -328,6 +334,102 @@ in {
       .a)
       .success;
     expected = false;
+  };
+
+  # Portable pieces pass every check, including the enabled-without-requires
+  # ones (a failed assertion is the readable outcome) and a scenario.
+  testPortableGoodPieces = {
+    expr = let
+      checks = portableCheck {
+        pieces = {
+          roles.widget = portable + "/good/roles/widget.nix";
+          profiles.tool = portable + "/good/profiles/tool.nix";
+        };
+        requires.roles.widget = [(portable + "/dep.nix")];
+        scenarios.widget = {
+          nixos.roles.widget.enable = true;
+          home.profiles.tool.enable = true;
+          requires = [(portable + "/dep.nix")];
+        };
+      };
+    in {
+      names = builtins.attrNames checks;
+      failing = failingChecks checks;
+    };
+    expected = {
+      names = [
+        "omninix-portable-inert"
+        "omninix-portable-profiles-tool"
+        "omninix-portable-profiles-tool-enabled"
+        "omninix-portable-roles-widget"
+        "omninix-portable-roles-widget-enabled"
+        "omninix-portable-scenario-widget"
+        "omninix-portable-static"
+      ];
+      failing = [];
+    };
+  };
+
+  # Each non-portable piece fails the check aimed at it.
+  testPortableCatchesArgs = {
+    expr = badRole "bad-args";
+    expected = ["omninix-portable-static"];
+  };
+  testPortableCatchesIndirectArgs = {
+    expr = badRole "bad-specialargs";
+    expected = ["omninix-portable-inert" "omninix-portable-static"];
+  };
+  testPortableCatchesPersonalValues = {
+    expr = badRole "bad-personal";
+    expected = ["omninix-portable-static"];
+  };
+  testPortableCatchesInternalImports = {
+    expr = badRole "bad-internal";
+    expected = ["omninix-portable-roles-x" "omninix-portable-static"];
+  };
+  testPortableCatchesActOnImport = {
+    expr = badRole "bad-not-inert";
+    expected = ["omninix-portable-inert"];
+  };
+  testPortableCatchesUngatedDependency = {
+    expr = badRole "bad-undeclared";
+    expected = ["omninix-portable-inert" "omninix-portable-roles-x" "omninix-portable-roles-x-enabled"];
+  };
+  testPortableCatchesThrowWhenEnabled = {
+    expr = badRole "bad-enabled";
+    expected = ["omninix-portable-roles-x-enabled"];
+  };
+
+  # The allow list exempts a string from the personal-value lint.
+  testPortableAllowList = {
+    expr = failingChecks (portableCheck {
+      pieces.roles.x = portable + "/bad-personal/roles/x.nix";
+      allow = ["10.0.0.4"];
+    });
+    expected = [];
+  };
+
+  testPortableExclude = {
+    expr = builtins.attrNames (portableCheck {
+      pieces.roles.x = portable + "/bad-args/roles/x.nix";
+      exclude = ["roles.x"];
+    });
+    expected = ["omninix-portable-inert" "omninix-portable-static"];
+  };
+
+  # The flake-parts option wires them into checks.<system>.
+  testFlakeModulePortableChecks = {
+    expr = builtins.filter (lib.hasPrefix "omninix-portable") (builtins.attrNames (evalSharing {omninix.checks.portable.enable = true;}).checks.${system});
+    expected = [
+      "omninix-portable-homeModules-hmod"
+      "omninix-portable-inert"
+      "omninix-portable-nixosModules-mod"
+      "omninix-portable-profiles-pub"
+      "omninix-portable-profiles-pub-enabled"
+      "omninix-portable-roles-public"
+      "omninix-portable-roles-public-enabled"
+      "omninix-portable-static"
+    ];
   };
 
   # Hosts import every role and NixOS module: own, internal/ and extra*.

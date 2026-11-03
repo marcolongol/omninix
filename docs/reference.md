@@ -34,12 +34,33 @@ fails with its file location.
 | `userSystems` | attrs of strings | `{}` | per-user system for standalone home configs |
 | `allowUnfree` | bool | `false` | allow unfree packages everywhere |
 | `debug` | bool | `false` | trace discovery and builds |
+| `checks.portable.enable` | bool | `false` | add checks proving your exported pieces work in other flakes ([below](#portability-check)) |
+| `checks.portable.requires` | attrs | `{}` | modules a consumer must bring, per piece: `{ roles.desktop = [stylix…]; }` |
+| `checks.portable.scenarios` | attrs | `{}` | named deep evals: `{ nixos; home; requires; homeRequires; }` |
+| `checks.portable.exclude` | list of strings | `[]` | pieces not checked yet, e.g. `"roles.desktop"` (warns) |
+| `checks.portable.enableOptions` | attrs | `{}` | enable option per piece when it isn't `roles/profiles.<camelName>.enable` |
+| `checks.portable.allow` | list of strings | `[]` | strings the personal-value lint ignores |
+| `checks.portable.system` | string | `defaultSystem` | system the checks run on (Linux) |
 
 The flake's per-system outputs (`packages`, `formatter`, …) cover flake-parts'
 own `systems`. List every system your hosts and users run on.
 
 `perSystem`'s `pkgs` is OmniNix's package set (overlays, packages, unfree
 setting). See [Packages and overlays](packages-and-overlays.md#persystem-pkgs-flake-parts).
+
+### Portability check
+
+With `checks.portable.enable`, `nix flake check` also proves that your exported
+roles, profiles and modules work in someone else's flake. Each is a separate
+`checks.<system>.omninix-portable-*` attribute:
+
+| Check | Fails when |
+|---|---|
+| `-static` | a piece takes `inputs`, `secretsPath`, `hostName`, … (or `osConfig` in Home Manager), reads them through `_module.specialArgs`, fetches at eval time, imports from `internal/`, or contains an email, private IP, `/home/<name>` path, key or coordinates |
+| `-inert` | importing every piece without enabling any changes the system |
+| `-<kind>-<name>` | the piece doesn't evaluate on its own (with its `requires`), or pulls in an `internal/` file |
+| `-<kind>-<name>-enabled` | enabling it **without** its `requires` throws instead of failing a readable assertion |
+| `-scenario-<name>` | a scenario doesn't evaluate |
 
 ### What your flake exports
 
@@ -172,6 +193,7 @@ Under `omninix.lib.omninix`:
 | `forAllNixFiles dir f` | `{ <name> = f path; }` for each `.nix` file or `<dir>/default.nix` |
 | `mkDirMap { name = dir; }` | `forAllNixFiles` over several directories |
 | `loadOverlays path` | overlays from a directory (one per file) or a file returning a list |
+| `mkPortableCheck { inputs; system; pieces; … }` | the portability checks above, for flakes without the flake-parts module |
 | `discoverPieces dir` | `{ all; exportable; }`: like `forAllNixFiles`, plus `dir/internal/` in `all` only |
 | `pick [names] attrs` | only the named entries (throws on a typo) |
 | `drop [names] attrs` | everything except the named entries |
