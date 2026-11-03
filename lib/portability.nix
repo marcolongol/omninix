@@ -47,6 +47,7 @@
     ["a /home/<name> path" "(^|[^A-Za-z0-9_.-])/home/[a-z]"]
     ["key material" "(ssh-ed25519 AAAA|ssh-rsa AAAA|BEGIN PGP|age1[a-z0-9]{20,})"]
     ["coordinates" "-?[0-9]{1,3}\\.[0-9]{4,},[ ]*-?[0-9]{1,3}\\.[0-9]{4,}"]
+    ["coordinates" "(lat|latitude)[=:\" ]+-?[0-9]{1,3}\\.[0-9]{3,}"]
   ];
 in {
   # Build the portability checks for a flake's exported pieces
@@ -125,6 +126,9 @@ in {
 
       base = {lib, ...}: {
         boot.isContainer = true;
+        # Containers default to the host's resolv.conf, which clashes with
+        # pieces that enable systemd-resolved.
+        networking.useHostResolvConf = false;
         system.stateVersion = "26.05";
         networking.hostName = "portable";
         nixpkgs.config.allowUnfree = true;
@@ -188,12 +192,15 @@ in {
                   args = optionals (builtins.isFunction v) (attrNames (builtins.functionArgs v));
                   bad = filter (a: builtins.elem a (bannedArgs ++ optional (builtins.elem kind homeKinds) "osConfig")) args;
                   text = builtins.readFile file;
+                  # Code rules skip full-line comments (a comment may name a
+                  # path); personal-value rules read everything.
+                  code = final.concatStringsSep "\n" (filter (l: builtins.match "[[:space:]]*#.*" l == null) (final.splitString "\n" text));
                   cleaned = builtins.replaceStrings allow (map (_: "") allow) text;
                   where = "${kind}.${name}: ${toString file}";
                   rules = codeRules ++ optional (builtins.elem kind homeKinds) ["reads osConfig (absent in standalone Home Manager)" "osConfig"];
                 in
                   map (a: "${where} takes `${a}`") bad
-                  ++ concatMap (r: optional (matches (builtins.elemAt r 1) text) "${where} ${builtins.head r}") rules
+                  ++ concatMap (r: optional (matches (builtins.elemAt r 1) code) "${where} ${builtins.head r}") rules
                   ++ concatMap (r: optional (matches (builtins.elemAt r 1) cleaned) "${where} contains ${builtins.head r}") personalRules
               ) (nixFiles checked.${kind}.${name})
           ) (attrNames checked.${kind})

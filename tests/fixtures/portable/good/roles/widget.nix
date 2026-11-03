@@ -1,5 +1,6 @@
 # Portable role: options only, requirement asserted, dep settings gated on the option.
 # Not personal values (lint regression): version 10.1.1.339, path roles/desktop/home/browser.nix.
+# A comment naming ./internal/glue.nix is not an import (lint regression).
 {
   config,
   lib,

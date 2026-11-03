@@ -347,7 +347,11 @@ in {
         };
         requires.roles.widget = [(portable + "/dep.nix")];
         scenarios.widget = {
-          nixos.roles.widget.enable = true;
+          nixos = {
+            roles.widget.enable = true;
+            # Container check hosts must not use the host's resolv.conf.
+            services.resolved.enable = true;
+          };
           home.profiles.tool.enable = true;
           requires = [(portable + "/dep.nix")];
         };
@@ -378,6 +382,10 @@ in {
   testPortableCatchesIndirectArgs = {
     expr = badRole "bad-specialargs";
     expected = ["omninix-portable-inert" "omninix-portable-static"];
+  };
+  testPortableCatchesCoordinates = {
+    expr = badRole "bad-coords";
+    expected = ["omninix-portable-static"];
   };
   testPortableCatchesPersonalValues = {
     expr = badRole "bad-personal";
