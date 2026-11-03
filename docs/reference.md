@@ -48,6 +48,7 @@ setting). See [Packages and overlays](packages-and-overlays.md#persystem-pkgs-fl
 | `nixosConfigurations`, `homeConfigurations` | your hosts and standalone users |
 | `roles`, `profiles` | your own roles and profiles, as paths |
 | `nixosModules`, `homeModules` | your own `nixosModulesDir` / `homeManagerModulesDir` entries |
+| `overlays.packages` | your `packagesDir` as an add-only overlay ([details](packages-and-overlays.md#sharing-them)) |
 | `hosts`, `users` | the discovered paths |
 
 Another flake can use them with `extraRoles`, `extraProfiles`,
@@ -129,8 +130,8 @@ outputs = {omninix, ...} @ inputs:
 ```
 
 It returns `nixosConfigurations`, `homeConfigurations`, `hosts`, `roles`,
-`users`, `profiles`, `nixosModules`, `homeModules`, and `packages` when
-`packagesDir` is set. It also takes `extraNixosModules` and
+`users`, `profiles`, `nixosModules`, `homeModules`, and `packages` plus
+`overlays.packages` when `packagesDir` is set. It also takes `extraNixosModules` and
 `extraHomeManagerModules`.
 
 ### À la carte

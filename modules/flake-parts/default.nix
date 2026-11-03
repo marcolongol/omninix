@@ -120,6 +120,8 @@ in {
         if hmFlakeModule
         then lib.mapAttrs (_: lib.mkDefault) core.outputs.homeModules
         else lib.mkDefault core.outputs.homeModules;
+      # Same: your own overlays.packages wins.
+      overlays = lib.mkIf core.hasPackages (lib.mapAttrs (_: lib.mkDefault) core.overlays);
     };
 
     perSystem = {system, ...}: let

@@ -38,6 +38,13 @@ check() {
   [ "$(nix eval '.#roles' --apply 'r: r ? impermanent')" = false ] \
     || fail "[$1] roles output re-exports omninix's impermanent"
 
+  echo "-- [$1] nix flake check accepts the outputs (overlay arg names, …) --"
+  nix flake check --no-build >/dev/null 2>&1 || fail "[$1] nix flake check --no-build failed"
+
+  echo "-- [$1] overlays.packages is exported --"
+  [ "$(nix eval '.#overlays' --apply 'o: builtins.attrNames o' --json)" = '["packages"]' ] \
+    || fail "[$1] overlays.packages is missing"
+
   echo "-- [$1] standalone home config evaluates --"
   sv="$(nix eval --raw '.#homeConfigurations.example-user.config.home.stateVersion')"
   [ "$sv" = "26.05" ] || fail "[$1] home.stateVersion was '$sv', expected 26.05"

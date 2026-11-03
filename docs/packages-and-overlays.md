@@ -33,6 +33,21 @@ callPackage ../image {
 A package whose `meta.platforms` excludes a system is left out of
 `packages.<system>` there (it is still `pkgs.<name>`).
 
+### Sharing them
+
+Your packages are also exported as **`overlays.packages`**, so another flake
+can add them to its own `pkgs`:
+
+```nix
+nixpkgs.overlays = [inputs.my-flake.overlays.packages];
+```
+
+It holds `packagesDir` only, never your `overlaysDir` overrides, which would
+rebuild other people's packages. It only adds packages. Using one that would
+replace an existing package, or one that takes `inputs` (only your flake has
+those), is an error; the other packages still work. Define your own
+`flake.overlays.packages` to replace it.
+
 ## Overriding nixpkgs
 
 ```nix

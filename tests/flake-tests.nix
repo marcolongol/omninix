@@ -50,6 +50,10 @@
 
   toplevel = c: c.nixosConfigurations.test.config.system.build.toplevel.drvPath;
 
+  # A consumer's own nixpkgs with the exported overlay (twice: shadowing).
+  withOverlays = overlays: import inputs.nixpkgs {inherit system overlays;};
+  consumerPkgs = withOverlays [viaMkFlake.overlays.packages];
+
   # Sharing fixture: each piece declares options.fixture.<name>, so a probe of
   # which options exist shows what was imported.
   sharing = ./fixtures/sharing;
@@ -86,12 +90,50 @@
 in {
   testMkFlakeOutputNames = {
     expr = builtins.attrNames viaMkFlake;
-    expected = ["homeConfigurations" "homeModules" "hosts" "nixosConfigurations" "nixosModules" "packages" "profiles" "roles" "users"];
+    expected = ["homeConfigurations" "homeModules" "hosts" "nixosConfigurations" "nixosModules" "overlays" "packages" "profiles" "roles" "users"];
   };
 
   testMkFlakeNoPackagesWithoutDir = {
     expr = omninix.mkFlake inputs {hostsDir = settings.hostsDir; defaultSystem = system;} ? packages;
     expected = false;
+  };
+
+  testMkFlakeNoOverlaysWithoutDir = {
+    expr = omninix.mkFlake inputs {hostsDir = settings.hostsDir; defaultSystem = system;} ? overlays;
+    expected = false;
+  };
+
+  # overlays.packages gives a consumer's own pkgs the same packages.
+  testOverlayPackagesMatchPackages = {
+    expr = consumerPkgs.hello-fixture.drvPath;
+    expected = viaMkFlake.packages.${system}.hello-fixture.drvPath;
+  };
+
+  # A package taking `inputs` can't be shared; it throws on use only.
+  testOverlayPackagesRejectInputsLazily = {
+    expr = {
+      inputs = (builtins.tryEval consumerPkgs.inputs-fixture.drvPath).success;
+      others = consumerPkgs ? hello-fixture;
+    };
+    expected = {
+      inputs = false;
+      others = true;
+    };
+  };
+
+  testOverlayPackagesRejectShadowing = {
+    expr = (builtins.tryEval (withOverlays [viaMkFlake.overlays.packages viaMkFlake.overlays.packages]).hello-fixture.drvPath).success;
+    expected = false;
+  };
+
+  testFlakeModuleOverlayPackagesMatchMkFlake = {
+    expr = (withOverlays [plain.overlays.packages]).hello-fixture.drvPath;
+    expected = consumerPkgs.hello-fixture.drvPath;
+  };
+
+  testFlakeModuleConsumerOverlayWins = {
+    expr = (evalFlake {flake.overlays.packages = final: prev: {marker = true;};}).overlays.packages {} {};
+    expected = {marker = true;};
   };
 
   testMkFlakeSystemsDefaultToDefaultSystem = {

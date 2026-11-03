@@ -45,6 +45,7 @@
   #                         = this flake's own entries, without `internal/` ones
   #                           and without extra* (so they can be shared);
   #     packages.<system>   = ...;  # only when packagesDir is set
+  #     overlays.packages   = packagesDir as an add-only overlay (same condition)
   #   }
   #
   # Features:
@@ -119,6 +120,7 @@
       # Auto-discovered packages: packages.<system>.<name>, read from the same
       # overlaid pkgs the hosts use. Only emitted when packagesDir is provided.
       // final.optionalAttrs core.hasPackages {
+        inherit (core) overlays;
         packages = final.genAttrs systems (system: core.packagesOf (core.pkgsFor system));
       };
 
@@ -257,6 +259,22 @@
 
     overlays = final.optional (discoveredPackages != {}) packagesOverlay ++ userOverlays;
 
+    # Exported overlays.packages: packagesDir only (never overlaysDir, whose
+    # overrides would rebuild other people's packages), add-only, and per
+    # attribute so one unshareable package doesn't break the others.
+    exportPackages = pkgsFinal: pkgsPrev:
+      final.mapAttrs (
+        name: path:
+          if pkgsPrev ? ${name}
+          then throw "OmniNix: overlays.packages: `${name}` would replace an existing package"
+          else if (final.functionArgs (import path)) ? inputs
+          then throw "OmniNix: overlays.packages: `${name}` takes `inputs`, which only this flake has"
+          else pkgsFinal.callPackage path {}
+      )
+      discoveredPackages;
+    # `nix flake check` requires the overlay's arguments to be named final/prev.
+    packagesExportOverlay = final: prev: exportPackages final prev;
+
     pkgsFor = system:
       import inputs.nixpkgs {
         inherit system overlays;
@@ -290,6 +308,8 @@
     ''; {
       inherit pkgsFor;
       hasPackages = validatedPackagesDir != null;
+      # Shareable overlays, emitted with packages (only when packagesDir is set).
+      overlays = {packages = packagesExportOverlay;};
       outputs = {
         inherit (dirs) hosts users;
         # Shareable: own entries only, without internal/ or extra*.
