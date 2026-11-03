@@ -1,12 +1,11 @@
 # OmniNix profile: developer
 #
 # NOTE: contains UNFREE packages (ngrok, dbeaver-bin). Enabling this profile
-# therefore requires `allowUnfree = true` in your mkFlake call.
+# therefore requires allowUnfree = true (mkFlake argument / omninix.allowUnfree).
 #
-# NOTE: uses several newer Home Manager program modules (programs.claude-code,
-# programs.lazydocker, programs.k9s, programs.ssh.enableDefaultConfig). These
-# need a reasonably recent home-manager (≈ 24.11+ / matching nixos-25.05+).
-# On an older home-manager pin you may get "option does not exist" errors.
+# NOTE: uses recent Home Manager options (programs.claude-code,
+# programs.ssh.enableDefaultConfig). An older home-manager pin may fail with
+# "option does not exist".
 {
   config,
   lib,
@@ -43,7 +42,7 @@
         core.editor = "vim";
         pull.rebase = true;
 
-        # Security & Performance
+        # Workflow
         push.autoSetupRemote = true;
         fetch.prune = true;
         rebase.autoStash = true;

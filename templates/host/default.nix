@@ -28,6 +28,6 @@
 
   # OmniNix fails the build if an active user has no password. For the very
   # first install you can bootstrap with passwordless login — REMOVE once a
-  # password is set (see the project README, "Users & Security"):
+  # password is set (see docs/secrets.md):
   # omninix.allowInsecureBootstrap = true;
 }

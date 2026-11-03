@@ -2,9 +2,9 @@
 #
 # Each test evaluates a fixture host through the real mkNixosConfigurations
 # builder and asserts on the resulting NixOS `config`. No VM/build — pure
-# evaluation — so these are fast and cover the module logic the launch review
-# changed (security fail-closed, opt-in groups, per-host system, allowUnfree,
-# the omninix.* namespace).
+# evaluation — so these are fast and cover the module logic (security
+# fail-closed, opt-in groups, per-host system, allowUnfree, the omninix.*
+# namespace, roles.impermanent).
 {
   inputs,
   omninix,
@@ -91,7 +91,7 @@
 
   persisted = cfg: {inherit (cfg.environment.persistence."/persist") directories files hideMounts;};
 in {
-  # --- security model (B1/H4/M9/G2) ----------------------------------------
+  # --- security model ----------------------------------------
 
   # Fail closed: an active user with no password yields a failing assertion.
   testPasswordlessFailsClosed = {
@@ -141,7 +141,7 @@ in {
     expected = [];
   };
 
-  # --- groups (H4) ---------------------------------------------------------
+  # --- groups ---------------------------------------------------------
 
   # No privileged groups granted by default.
   testNoDefaultGroups = {
@@ -211,7 +211,7 @@ in {
     };
   };
 
-  # Service-dependent paths, in the order nix-config relies on for parity.
+  # Service-dependent paths, in the role's list order.
   testImpermanentConditionalDirs = {
     expr =
       (persisted (impHost {
@@ -318,7 +318,7 @@ in {
     expected = true;
   };
 
-  # dt shape: /persist as a btrfs subvolume beside root is fine...
+  # /persist as a btrfs subvolume beside root is fine...
   testImpermanentWipeSiblingPersistOk = {
     expr = hasFailingAssertion "also mounted at" (wipeHost {
       fileSystems."/persist" = lib.mkForce {
@@ -420,7 +420,7 @@ in {
     expected = false;
   };
 
-  # --- per-host system (B5) ------------------------------------------------
+  # --- per-host system ------------------------------------------------
 
   testHostSystemsOverride = {
     expr =
@@ -435,7 +435,7 @@ in {
   # --- persistence option seam (impermanence glue) -------------------------
 
   # The system-level omninix.persistence aggregation seam exists and defaults
-  # empty. Consumers' own impermanence role reads it into environment.persistence;
+  # empty. roles.impermanent reads it into environment.persistence;
   # the user-level counterpart is wired into home.persistence by modules/nixos.
   testPersistenceDefaultsEmpty = {
     expr = (evalHost {module = bootstrapUser;}).omninix.persistence;
@@ -445,7 +445,7 @@ in {
     };
   };
 
-  # --- nixpkgs config (M4) + namespace (L3) --------------------------------
+  # --- nixpkgs config + namespace --------------------------------
 
   testAllowUnfreeDefaultsFalse = {
     expr = (evalHost {module = bootstrapUser;}).nixpkgs.config.allowUnfree;
@@ -457,7 +457,7 @@ in {
     expected = [];
   };
 
-  # --- sops secrets wiring (secretsPath, M-secrets) ------------------------
+  # --- sops secrets wiring (secretsPath) ------------------------
 
   # A present per-user secret IS a password mechanism, so the fail-closed
   # assertion clears with NO bootstrap (contrast testPasswordlessFailsClosed).

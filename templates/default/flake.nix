@@ -25,8 +25,8 @@
     };
 
     # Anything beyond the foundational inputs above is a plain module you import
-    # yourself in a host/role/profile (see the README, "Bringing your own
-    # modules"). For example, for ephemeral-root setups:
+    # yourself in a host/role/profile (see docs/third-party-modules.md). For
+    # example, for ephemeral-root setups:
     # impermanence.url = "github:nix-community/impermanence";
     # disko = { url = "github:nix-community/disko"; inputs.nixpkgs.follows = "nixpkgs"; };
   };

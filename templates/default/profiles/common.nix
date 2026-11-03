@@ -16,7 +16,7 @@
     programs.bash.enable = lib.mkDefault true;
 
     # Co-located persistence: any profile/user adds dirs here; OmniNix routes them
-    # to /persist/home/<user> when an impermanence role is on (inert otherwise).
+    # to /persist/home/<user> when /persist impermanence is active (inert otherwise).
     # omninix.persistence.directories = [ ".config/example-app" ];
     # omninix.persistence.files       = [ ".config/example-app/token" ];
 

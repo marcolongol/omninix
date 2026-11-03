@@ -23,11 +23,10 @@
   # module can pass its own module-system lib; only base lib functions are
   # used. `userFile` is null for hosts that list a user without a config.
   #
-  # Note: impermanence's HM module is intentionally NOT imported here. Current
-  # impermanence auto-imports it via its NixOS module (manual imports throw a
-  # deprecation assertion) and no longer ships a usable standalone HM flake
-  # output. OmniNix also doesn't wire persistentFolders/Files into home.persistence
-  # yet, so this import was vestigial.
+  # Note: impermanence's HM module is intentionally NOT imported here.
+  # Impermanence auto-imports it via its NixOS module (manual imports throw a
+  # deprecation assertion). modules/nixos adds impermanenceHomeModule per user
+  # to map omninix.persistence into home.persistence.
   mkHomeModules = {
     inputs,
     lib,

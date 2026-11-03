@@ -16,6 +16,8 @@
   #   inputs              - (required) Flake inputs used to build configs
   #   hosts               - (required) AttrSet of { hostName = hostPath }
   #   defaultSystem       - Default system architecture ("x86_64-linux")
+  #   hostSystems         - Per-host system override, e.g. { laptop = "aarch64-linux"; } ({})
+  #   allowUnfree         - Allow unfree packages (false)
   #   roles               - AttrSet of role modules
   #   users               - AttrSet of user configurations
   #   profiles            - AttrSet of user profile modules
@@ -25,16 +27,15 @@
   #   extraModules        - List of additional modules to include
   #   specialArgs         - Additional arguments passed to modules
   #   secretsPath         - Path to sops secrets file (or null)
-  #   omninixNixosModule    - Path to OmniNix NixOS module
+  #   omninixNixosModule  - Path to OmniNix NixOS module
   #   debug               - Enable verbose debug output (false)
   #
   # Returns:
   #   AttrSet of { hostName = nixosSystem }
   #
   # Features:
-  #   - Per-host system architecture via omninix.system
-  #   - Pkgs caching per architecture for performance
-  #   - Optional dependency detection (home-manager, disko, etc.)
+  #   - Per-host system architecture via hostSystems
+  #   - Optional dependency detection (home-manager, sops-nix)
   #   - Automatic module composition
   #   - Debug tracing when enabled
   #

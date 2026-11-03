@@ -7,9 +7,8 @@
 # this module is also imported by standalone homeConfigurations, which have no
 # impermanence module (so home.persistence would not exist).
 {lib, ...}: {
-  # Note: profiles are enable-based — each profile file self-declares its own
-  # `options.profiles.<name>.enable` and gates its config with it. There is no
-  # central `profiles` list option here anymore.
+  # Profiles are enable-based: each profile file declares its own
+  # `options.profiles.<name>.enable` and gates its config with it.
   options.omninix.persistence = {
     directories = lib.mkOption {
       type = lib.types.listOf lib.types.str;

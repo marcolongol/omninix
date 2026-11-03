@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
 # Run the full OmniNix test suite.
 #
-#   - `nix flake check` builds the eval checks (Layer 1 lib + Layer 2
-#     config-behaviour) and, on Linux, the Layer 4 VM boot test.
+#   - `nix flake check` builds the eval checks (Layer 1 lib, Layer 2
+#     config-behaviour, Layer 2b flake entry points) and, on Linux, the
+#     Layer 4 VM tests.
 #   - tests/smoke.sh initialises the template and asserts it evaluates.
 #
-# FAST=1 skips the heavy VM test (builds only the eval check + smoke), useful
+# FAST=1 skips the heavy VM tests (builds only the eval check + smoke), useful
 # for a quick local loop.
 set -euo pipefail
 

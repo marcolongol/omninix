@@ -18,19 +18,28 @@
   #   hostsDir                - Path to hosts directory (optional; without it
   #                             there are no nixosConfigurations)
   #   rolesDir                - Path to roles directory (optional)
+  #   extraRoles              - Roles merged with rolesDir; local wins ({})
   #   usersDir                - Path to users directory (optional)
   #   profilesDir             - Path to profiles directory (optional)
+  #   extraProfiles           - Profiles merged with profilesDir; local wins ({})
   #   nixosModulesDir         - Path to NixOS modules directory (optional)
   #   homeManagerModulesDir   - Path to Home Manager modules directory (optional)
   #   overlaysDir             - Overlays: one per .nix file, or a file/default.nix returning a list (optional)
+  #   packagesDir             - Packages exposed as pkgs.<name> and packages.<system>.<name> (optional)
   #   secretsPath             - Path to sops secrets file (optional)
   #   defaultSystem           - Default system architecture ("x86_64-linux")
+  #   hostSystems             - Per-host system override ({})
+  #   userSystems             - Per-user system override for homeConfigurations ({})
+  #   systems                 - Systems to emit packages for ([defaultSystem])
+  #   allowUnfree             - Allow unfree packages (false)
   #   debug                   - Enable verbose debug output (false)
   #
   # Returns:
   #   {
   #     nixosConfigurations = { hostName = nixosSystem; ... };
   #     homeConfigurations  = { userName = homeManagerConfiguration; ... };
+  #     hosts, roles, profiles, users = discovered attrsets;
+  #     packages.<system>   = ...;  # only when packagesDir is set
   #   }
   #
   # Features:
@@ -181,8 +190,7 @@
     in
       # Emit discovery traces by threading them through the result so they
       # actually fire when debug is enabled. A bare `_N = debugTrace ...` let
-      # binding is never referenced, so Nix's laziness means it never evaluates
-      # (the previous form silently produced no debug output at all).
+      # binding is never referenced, so Nix's laziness means it never evaluates.
       builtins.foldl' (acc: msg: debugTrace msg acc) result [
         "Discovery results:"
         "  Hosts: ${toString (builtins.attrNames (discovered.hosts or {}))}"
@@ -244,8 +252,7 @@
   in
     # Input guards (validations.nix helpers). These run as real `assert`s in
     # front of the result so they actually fire — a bare `_ = assert ...` let
-    # binding would never be forced under laziness (the previous no-hosts check
-    # was silently dead).
+    # binding would never be forced under laziness.
     assert final.omninix.assertIsString "defaultSystem" defaultSystem;
     # An empty hostsDir is almost certainly a mistake; leaving it unset is not.
     assert (validatedHostsDir == null || dirs.hosts != {})

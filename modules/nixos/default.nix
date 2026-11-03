@@ -12,9 +12,8 @@
 }: let
   cfg = config.omninix;
 
-  # Users activated on this host (enable-based). Each role/profile module
-  # self-declares its own `options.roles.<name>.enable` /
-  # `profiles.<name>.enable`, so there is no central roles list option here.
+  # Users activated on this host (enable-based). Roles and profiles likewise
+  # declare their own `options.roles.<name>.enable` / `profiles.<name>.enable`.
   activeUsers = lib.attrNames (lib.filterAttrs (_: u: u.enable) cfg.hostUsers);
 
   # Active users that actually have a password secret file on disk. The
@@ -133,12 +132,12 @@ in {
       directories = lib.mkOption {
         type = lib.types.listOf lib.types.str;
         default = [];
-        description = "System directories to persist under /persist when impermanence is active. Read by your own impermanence role.";
+        description = "System directories to persist under /persist. Applied by roles.impermanent when it is enabled.";
       };
       files = lib.mkOption {
         type = lib.types.listOf lib.types.str;
         default = [];
-        description = "System files to persist under /persist when impermanence is active. Read by your own impermanence role.";
+        description = "System files to persist under /persist. Applied by roles.impermanent when it is enabled.";
       };
     };
   };
@@ -202,7 +201,7 @@ in {
         useUserPackages = true;
         backupFileExtension = "bak";
         # Per-user imports come from the shared mkHomeModules helper (see
-        # lib/default.nix) so they stay identical to the standalone
+        # lib/mkHomeModules.nix) so they stay identical to the standalone
         # homeConfigurations path. stateVersion is always defaulted (mkDefault)
         # so a user file may override it but is never required to set it.
         users = lib.genAttrs activeUsers (

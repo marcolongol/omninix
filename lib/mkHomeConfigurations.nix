@@ -30,9 +30,8 @@
     users,
     defaultSystem ? "x86_64-linux",
     # Per-user system override, e.g. { alice = "aarch64-darwin"; }. User files
-    # are functions (unlike host files) so the system can't be read from them
-    # like hosts; it comes from this explicit map. Users not listed use
-    # defaultSystem.
+    # are modules (functions), so the system can't be read from them; it comes
+    # from this explicit map. Users not listed use defaultSystem.
     userSystems ? {},
     profiles ? {},
     homeManagerModules ? {},

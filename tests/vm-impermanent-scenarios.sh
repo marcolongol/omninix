@@ -78,7 +78,7 @@ expect "previous root archived" '[[ -n $(find "$M/old_roots" -maxdepth 2 -name m
 expect "no failure flag" '[[ ! -e $FAILED ]]'
 teardown
 
-echo "S2 no root and a stale old_roots (old self-match bug)"
+echo "S2 no root and a stale old_roots (old_roots must not match itself)"
 setup s2; mkdata; mkdir -p "$M/old_roots"; touch -d "40 days ago" "$M/old_roots"
 run "$PLAIN"
 expect "exit 0" '[[ $RC == 0 ]]'
@@ -86,7 +86,7 @@ expect "root created" '[[ -d $M/root ]]'
 expect "nix and persist intact" data_intact
 teardown
 
-echo "S3 plain directory in old_roots (old list -o bug)"
+echo "S3 plain directory in old_roots (only subvolumes are pruned)"
 setup s3; mkroot; mkdata; mkdir -p "$M/old_roots/keep"; touch -d "40 days ago" "$M/old_roots/keep"
 run "$PLAIN"
 expect "exit 0" '[[ $RC == 0 ]]'

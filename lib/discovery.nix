@@ -92,7 +92,7 @@
   # Type: Path -> [Overlay]
   #
   # A file, or a directory with default.nix, is imported and must return a
-  # LIST of overlays (the original contract). Any other directory is
+  # LIST of overlays. Any other directory is
   # discovered like roles/: every .nix file (or subdirectory with default.nix)
   # is one overlay, applied in name order.
   #

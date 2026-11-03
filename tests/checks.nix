@@ -1,9 +1,9 @@
 # OmniNix flake checks.
 #
-# Exposes the eval test suites (Layer 1 lib + Layer 2 config-behaviour) as a
-# single `eval` derivation that fails — printing the offending cases — if any
-# lib.runTests case's result differs from its expected value. The VM test
-# (Layer 4) is added on Linux.
+# Exposes the eval test suites (Layer 1 lib, Layer 2 config-behaviour, Layer 2b
+# flake entry points) as a single `eval` derivation that fails — printing the
+# offending cases — if any lib.runTests case's result differs from its expected
+# value. The VM tests (Layer 4) are added on Linux.
 #
 # Run everything with: nix flake check
 {

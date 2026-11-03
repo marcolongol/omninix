@@ -4,7 +4,7 @@
 # OmniNix framework. It extends nixpkgs.lib with custom functions for managing
 # hosts, roles, users, and profiles.
 #
-# Type: { nixpkgs :: Flake, ... } -> Lib
+# Type: { inputs :: { nixpkgs :: Flake, ... } } -> Lib
 #
 # Usage:
 #   { inputs }: let
@@ -15,9 +15,9 @@
 # into a single `lib.extend` fixpoint so cross-references (final.omninix.*) resolve
 # uniformly. This mirrors how nixpkgs' own lib is organized.
 #
-#   validations.nix            - assert* input guards
-#   utils.nix                  - generic helpers (mapAttrsMaybe, mkDebugTrace)
-#   discovery.nix              - directory scanning (forAllNixFiles, mkDirMap)
+#   validations.nix            - assert* input guards, validate* path helpers
+#   utils.nix                  - generic helpers (mapAttrsMaybe, mkDebugTrace, pick, drop)
+#   discovery.nix              - directory scanning (forAllNixFiles, mkDirMap, loadOverlays)
 #   mkNixosConfigurations.nix  - mkNixosConfigurations
 #   mkHomeModules.nix          - mkHomeModules (shared per-user HM module set)
 #   mkHomeConfigurations.nix   - mkHomeConfigurations (standalone HM)

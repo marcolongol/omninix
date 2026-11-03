@@ -1,8 +1,7 @@
 # OmniNix Layer 1 — pure lib function tests (lib.runTests format).
 #
 # Each entry is { expr; expected; }; lib.runTests reports any where expr differs
-# from expected. These cover the discovery/util/validation helpers that the
-# launch review found broken or untested.
+# from expected. These cover the discovery/util/validation helpers.
 {
   omninix,
   lib,
@@ -11,7 +10,7 @@
 in {
   # --- discovery -----------------------------------------------------------
 
-  # H2 / L1: only `.nix` files and directories with default.nix are discovered;
+  # Only `.nix` files and directories with default.nix are discovered;
   # stray README.md / notes.txt must be ignored.
   testDiscoveryIgnoresNonNix = {
     expr = lib.attrNames (omninix.forAllNixFiles discoveryDir (_: "found"));
@@ -49,7 +48,7 @@ in {
     expected = [{a = 1;} {b = 2;}];
   };
 
-  # A directory with default.nix keeps the original contract: it returns the list.
+  # A directory with default.nix is imported as-is and must return the list.
   testLoadOverlaysDefaultNixList = {
     expr = map (o: o {} {}) (omninix.loadOverlays ./fixtures/overlays-list);
     expected = [{x = 1;}];
@@ -88,13 +87,13 @@ in {
     expected = {b = 2;};
   };
 
-  # L2: pick throws (not a cryptic getAttrs error) on a missing name.
+  # pick throws (not a cryptic getAttrs error) on a missing name.
   testPickThrowsOnMissing = {
     expr = (builtins.tryEval (omninix.pick ["nope"] {a = 1;})).success;
     expected = false;
   };
 
-  # --- validations (M2: now actually exercised) ----------------------------
+  # --- validations ----------------------------
 
   testAssertIsStringOk = {
     expr = omninix.assertIsString "x" "hello";

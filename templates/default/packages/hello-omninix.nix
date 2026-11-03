@@ -1,6 +1,7 @@
 # Example package, auto-discovered from ./packages and exposed as
-# packages.<system>.hello-omninix and pkgs.hello-omninix on every host. Written in callPackage form: the function args
-# are filled from the (consumer's) nixpkgs package set.
+# packages.<system>.hello-omninix and pkgs.hello-omninix on every host. Written
+# in callPackage form: the function args are filled from the (consumer's)
+# nixpkgs package set; an `inputs` arg gets the flake inputs.
 {writeShellScriptBin}:
 writeShellScriptBin "hello-omninix" ''
   echo "Hello from OmniNix!"
