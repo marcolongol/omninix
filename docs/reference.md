@@ -23,7 +23,9 @@ fails with its file location.
 | `profilesDir` | path or null | `null` | profiles, imported for every user |
 | `extraProfiles` | attrs of modules | `{}` | more profiles by name, e.g. `omninix.profiles` |
 | `nixosModulesDir` | path or null | `null` | NixOS modules imported into every host |
+| `extraNixosModules` | attrs of modules | `{}` | more NixOS modules by name, e.g. another flake's `nixosModules`; `nixosModulesDir` wins on a name clash |
 | `homeManagerModulesDir` | path or null | `null` | Home Manager modules imported for every user |
+| `extraHomeManagerModules` | attrs of modules | `{}` | more Home Manager modules by name, e.g. another flake's `homeModules` |
 | `overlaysDir` | path or null | `null` | one overlay per `.nix` file ([details](packages-and-overlays.md)) |
 | `packagesDir` | path or null | `null` | packages → `pkgs.<name>` everywhere and `packages.<system>.<name>` |
 | `secretsPath` | path or null | `null` | sops secrets directory ([details](secrets.md)) |
@@ -38,6 +40,26 @@ own `systems`. List every system your hosts and users run on.
 
 `perSystem`'s `pkgs` is OmniNix's package set (overlays, packages, unfree
 setting). See [Packages and overlays](packages-and-overlays.md#persystem-pkgs-flake-parts).
+
+### What your flake exports
+
+| Output | Contents |
+|---|---|
+| `nixosConfigurations`, `homeConfigurations` | your hosts and standalone users |
+| `roles`, `profiles` | your own roles and profiles, as paths |
+| `nixosModules`, `homeModules` | your own `nixosModulesDir` / `homeManagerModulesDir` entries |
+| `hosts`, `users` | the discovered paths |
+
+Another flake can use them with `extraRoles`, `extraProfiles`,
+`extraNixosModules` and `extraHomeManagerModules`.
+
+Exports never include `extra*` entries (another flake's pieces stay theirs), or
+anything under an **`internal/`** subdirectory of `rolesDir`, `profilesDir`,
+`nixosModulesDir` or `homeManagerModulesDir`. `internal/` entries are still
+imported here, under their own names, so use it for pieces that only make sense
+in your flake: files that take `inputs`, personal values, site glue. A name that
+exists both in a directory and in its `internal/` is an error. Module exports are
+`mkDefault`, so your own `flake.nixosModules.<name>` replaces the discovered one.
 
 ## Host options (NixOS)
 
@@ -107,7 +129,9 @@ outputs = {omninix, ...} @ inputs:
 ```
 
 It returns `nixosConfigurations`, `homeConfigurations`, `hosts`, `roles`,
-`users`, `profiles`, and `packages` when `packagesDir` is set.
+`users`, `profiles`, `nixosModules`, `homeModules`, and `packages` when
+`packagesDir` is set. It also takes `extraNixosModules` and
+`extraHomeManagerModules`.
 
 ### À la carte
 
@@ -147,6 +171,7 @@ Under `omninix.lib.omninix`:
 | `forAllNixFiles dir f` | `{ <name> = f path; }` for each `.nix` file or `<dir>/default.nix` |
 | `mkDirMap { name = dir; }` | `forAllNixFiles` over several directories |
 | `loadOverlays path` | overlays from a directory (one per file) or a file returning a list |
+| `discoverPieces dir` | `{ all; exportable; }`: like `forAllNixFiles`, plus `dir/internal/` in `all` only |
 | `pick [names] attrs` | only the named entries (throws on a typo) |
 | `drop [names] attrs` | everything except the named entries |
 

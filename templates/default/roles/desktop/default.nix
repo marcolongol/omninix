@@ -3,7 +3,7 @@
 {
   config,
   lib,
-  inputs,
+  options,
   ...
 }: {
   options.roles.desktop.enable = lib.mkEnableOption "Sway desktop (system + user side)";
@@ -20,8 +20,9 @@
       };
     }
 
-    # Guarded so the role still works on a flake without home-manager.
-    (lib.optionalAttrs (inputs ? home-manager) {
+    # Guarded on the option, not on `inputs`, so the role still works without
+    # home-manager and can be shared with other flakes.
+    (lib.optionalAttrs (options ? home-manager) {
       home-manager.sharedModules = [./home.nix];
     })
   ]);

@@ -19,6 +19,9 @@
       inherit description;
     };
 
+  # Also decides how flake.homeModules is typed (see config below).
+  hmFlakeModule = inputs ? home-manager && inputs.home-manager ? flakeModules;
+
   core = omninixLib.omninix.mkFlakeCore inputs {
     inherit
       (cfg)
@@ -29,7 +32,9 @@
       profilesDir
       extraProfiles
       nixosModulesDir
+      extraNixosModules
       homeManagerModulesDir
+      extraHomeManagerModules
       overlaysDir
       packagesDir
       secretsPath
@@ -42,7 +47,7 @@
   };
 in {
   # Typed, mergeable flake.homeConfigurations; dedups with a consumer's own import.
-  imports = lib.optional (inputs ? home-manager && inputs.home-manager ? flakeModules) inputs.home-manager.flakeModules.home-manager;
+  imports = lib.optional hmFlakeModule inputs.home-manager.flakeModules.home-manager;
 
   options.omninix = {
     hostsDir = dirOption "Directory of hosts; each .nix file or dir/default.nix becomes nixosConfigurations.<name>.";
@@ -60,7 +65,17 @@ in {
       description = "Extra profiles by name (e.g. omninix.profiles). Local profilesDir wins on collision.";
     };
     nixosModulesDir = dirOption "Directory of NixOS modules imported into every host.";
+    extraNixosModules = mkOption {
+      type = moduleSet;
+      default = {};
+      description = "Extra NixOS modules by name (e.g. another flake's nixosModules), imported into every host. Local nixosModulesDir wins on collision.";
+    };
     homeManagerModulesDir = dirOption "Directory of Home Manager modules imported for every user.";
+    extraHomeManagerModules = mkOption {
+      type = moduleSet;
+      default = {};
+      description = "Extra Home Manager modules by name (e.g. another flake's homeModules), imported for every user. Local homeManagerModulesDir wins on collision.";
+    };
     overlaysDir = dirOption "Overlays: one per .nix file, or a file/default.nix returning a list.";
     packagesDir = dirOption "Packages (callPackage form): pkgs.<name> everywhere and perSystem.packages.<name>.";
     secretsPath = dirOption "sops-nix secrets directory (users/<name>.yaml, <host>.yaml).";
@@ -96,6 +111,15 @@ in {
   config = {
     flake = {
       inherit (core.outputs) hosts roles profiles users nixosConfigurations homeConfigurations;
+      # mkDefault so a consumer's own same-named export replaces ours instead of
+      # merging with it (deferredModule merges definitions).
+      nixosModules = lib.mapAttrs (_: lib.mkDefault) core.outputs.nixosModules;
+      # Typed per entry only with HM's flakeModule; otherwise flake.homeModules is
+      # a freeform raw value, which would keep per-entry mkDefault literally.
+      homeModules =
+        if hmFlakeModule
+        then lib.mapAttrs (_: lib.mkDefault) core.outputs.homeModules
+        else lib.mkDefault core.outputs.homeModules;
     };
 
     perSystem = {system, ...}: let

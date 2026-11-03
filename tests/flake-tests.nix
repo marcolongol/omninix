@@ -49,10 +49,44 @@
     .probe;
 
   toplevel = c: c.nixosConfigurations.test.config.system.build.toplevel.drvPath;
+
+  # Sharing fixture: each piece declares options.fixture.<name>, so a probe of
+  # which options exist shows what was imported.
+  sharing = ./fixtures/sharing;
+  sharingSettings =
+    settings
+    // {
+      rolesDir = sharing + "/roles";
+      profilesDir = sharing + "/profiles";
+      nixosModulesDir = sharing + "/nixos";
+      homeManagerModulesDir = sharing + "/home";
+      extraRoles.extra = sharing + "/extra-role.nix";
+      extraNixosModules.extra = sharing + "/extra-nixos.nix";
+      extraHomeManagerModules.extra = sharing + "/extra-home.nix";
+      defaultSystem = system;
+    };
+  sharingMkFlake = omninix.mkFlake consumerInputs sharingSettings;
+  evalSharing = module:
+    inputs.flake-parts.lib.mkFlake {inputs = consumerInputs;} {
+      imports = [inputs.self.flakeModules.default module];
+      systems = [system];
+      omninix = sharingSettings;
+    };
+  sharingPlain = evalSharing {};
+  fixtureOptions = c: builtins.attrNames c.options.fixture;
+  # Leaf paths of a flake-parts module export, one per definition
+  # (wrapper -> deferredModule -> one entry per definition -> path).
+  definitionPaths = m: map (d: builtins.head d.imports) (builtins.head m.imports).imports;
+  exportNames = out: {
+    roles = builtins.attrNames out.roles;
+    profiles = builtins.attrNames out.profiles;
+    nixosModules = builtins.attrNames out.nixosModules;
+    homeModules = builtins.attrNames out.homeModules;
+  };
 in {
   testMkFlakeOutputNames = {
     expr = builtins.attrNames viaMkFlake;
-    expected = ["homeConfigurations" "hosts" "nixosConfigurations" "packages" "profiles" "roles" "users"];
+    expected = ["homeConfigurations" "homeModules" "hosts" "nixosConfigurations" "nixosModules" "packages" "profiles" "roles" "users"];
   };
 
   testMkFlakeNoPackagesWithoutDir = {
@@ -207,19 +241,132 @@ in {
     expected = false;
   };
 
+  # extraRoles are imported, not exported, so check the option value itself.
   testFlakeModuleExtraRolesKeepPaths = {
-    expr = (evalFlake {omninix.extraRoles.a = ./fixtures/discovery/role-a.nix;}).roles.a;
+    expr =
+      (inputs.flake-parts.lib.evalFlakeModule {inputs = consumerInputs;} {
+        imports = [inputs.self.flakeModules.default];
+        systems = [system];
+        omninix.extraRoles.a = ./fixtures/discovery/role-a.nix;
+      })
+      .config
+      .omninix
+      .extraRoles
+      .a;
     expected = ./fixtures/discovery/role-a.nix;
   };
 
   testFlakeModuleExtraRolesOneDefinitionPerName = {
     expr =
-      (builtins.tryEval (evalFlake {
-        imports = [{omninix.extraRoles.a = ./fixtures/discovery/role-a.nix;}];
-        omninix.extraRoles.a = ./fixtures/discovery/sub;
-      })
-      .roles
+      (builtins.tryEval
+        (inputs.flake-parts.lib.evalFlakeModule {inputs = consumerInputs;} {
+          imports = [inputs.self.flakeModules.default {omninix.extraRoles.a = ./fixtures/discovery/role-a.nix;}];
+          systems = [system];
+          omninix.extraRoles.a = ./fixtures/discovery/sub;
+        })
+      .config
+      .omninix
+      .extraRoles
       .a)
+      .success;
+    expected = false;
+  };
+
+  # Hosts import every role and NixOS module: own, internal/ and extra*.
+  testSharingHostImportsAll = {
+    expr = fixtureOptions sharingMkFlake.nixosConfigurations.test;
+    expected = ["nixosExtra" "nixosPrivate" "nixosPublic" "roleExtra" "rolePrivate" "rolePublic"];
+  };
+
+  # Users get every profile and HM module: own, internal/ and extra*.
+  testSharingHomeImportsAll = {
+    expr = fixtureOptions sharingMkFlake.homeConfigurations.alice;
+    expected = ["homeExtra" "homePrivate" "homePublic" "profilePrivate" "profilePublic"];
+  };
+
+  # Exports are this flake's own pieces only: no internal/, no extra*.
+  testSharingMkFlakeExportsOwnOnly = {
+    expr = exportNames sharingMkFlake;
+    expected = {
+      roles = ["public"];
+      profiles = ["pub"];
+      nixosModules = ["mod"];
+      homeModules = ["hmod"];
+    };
+  };
+
+  testSharingFlakeModuleExportsOwnOnly = {
+    expr = exportNames sharingPlain;
+    expected = exportNames sharingMkFlake;
+  };
+
+  # flake-parts wraps module exports (_class, imports = [path]).
+  testSharingFlakeModuleWrapsModules = {
+    expr = {
+      nixos = {
+        inherit (sharingPlain.nixosModules.mod) _class;
+        paths = definitionPaths sharingPlain.nixosModules.mod;
+      };
+      home = {
+        inherit (sharingPlain.homeModules.hmod) _class;
+        paths = definitionPaths sharingPlain.homeModules.hmod;
+      };
+    };
+    expected = {
+      nixos = {
+        _class = "nixos";
+        paths = [sharingMkFlake.nixosModules.mod];
+      };
+      home = {
+        _class = "homeManager";
+        paths = [sharingMkFlake.homeModules.hmod];
+      };
+    };
+  };
+
+  # A consumer's own same-named export replaces ours instead of merging.
+  testSharingConsumerExportWins = {
+    expr = let
+      out = evalSharing {
+        flake.nixosModules.mod = sharing + "/extra-nixos.nix";
+        flake.homeModules.hmod = sharing + "/extra-home.nix";
+      };
+    in {
+      nixos = definitionPaths out.nixosModules.mod;
+      home = definitionPaths out.homeModules.hmod;
+    };
+    expected = {
+      nixos = [(sharing + "/extra-nixos.nix")];
+      home = [(sharing + "/extra-home.nix")];
+    };
+  };
+
+  # Without home-manager's flakeModule, flake.homeModules is a plain value.
+  testSharingHomeModulesWithoutHmFlakeModule = {
+    expr =
+      builtins.attrNames
+      (inputs.flake-parts.lib.mkFlake {inputs = builtins.removeAttrs consumerInputs ["home-manager"];} {
+        imports = [inputs.self.flakeModules.default];
+        systems = [system];
+        omninix = {
+          homeManagerModulesDir = sharing + "/home";
+          defaultSystem = system;
+        };
+      })
+      .homeModules;
+    expected = ["hmod"];
+  };
+
+  # The same name in a dir and its internal/ throws instead of one winning.
+  testSharingInternalClashThrows = {
+    expr =
+      (builtins.tryEval (builtins.attrNames
+        (omninix.mkFlake consumerInputs {
+          inherit (settings) hostsDir;
+          rolesDir = ./fixtures/sharing-clash/roles;
+          defaultSystem = system;
+        })
+        .roles))
       .success;
     expected = false;
   };

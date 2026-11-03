@@ -63,6 +63,32 @@
       ]
     else {};
 
+  # Discover a shareable piece directory (roles, profiles, modules)
+  #
+  # Type: Path -> { all :: AttrSet; exportable :: AttrSet; }
+  #
+  # Like forAllNixFiles, plus `<dir>/internal/`: its entries join the same map
+  # (same names, same import depth) so they are used locally, but they are
+  # left out of `exportable`, which is what the flake exports. "internal" is
+  # reserved: it is never an entry itself. A name defined both in `dir` and
+  # in `internal/` throws instead of one silently winning.
+  #
+  # Example:
+  #   roles/{desktop.nix, internal/site.nix}
+  #   discoverPieces ./roles
+  #   => { all = { desktop = …; site = …; }; exportable = { desktop = …; }; }
+  discoverPieces = dir: let
+    top = builtins.removeAttrs (final.omninix.forAllNixFiles dir (fn: fn)) ["internal"];
+    internal = final.omninix.forAllNixFiles (dir + "/internal") (fn: fn);
+    clashes = builtins.attrNames (builtins.intersectAttrs top internal);
+  in
+    if clashes != []
+    then throw "OmniNix: ${toString dir} and its internal/ both define: ${toString clashes}"
+    else {
+      all = top // internal;
+      exportable = top;
+    };
+
   # Map multiple directories to their discovered .nix files
   #
   # Type: AttrSet -> AttrSet

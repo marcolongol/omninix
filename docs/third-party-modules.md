@@ -11,7 +11,9 @@ Only two inputs are wired up automatically when you declare them:
 ## Fleet-wide
 
 Put a small wrapper in a modules directory; every file there is imported into
-every host (or every user):
+every host (or every user). Put it under `internal/`: it reads your flake
+`inputs`, so it shouldn't be exported for other flakes (see
+[What your flake exports](reference.md#what-your-flake-exports)):
 
 ```nix
 omninix = {
@@ -21,7 +23,7 @@ omninix = {
 ```
 
 ```nix
-# modules/nixos/third-party.nix
+# modules/nixos/internal/third-party.nix
 {inputs, ...}: {
   imports = [
     inputs.disko.nixosModules.disko

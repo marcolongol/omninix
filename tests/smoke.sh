@@ -32,9 +32,11 @@ check() {
     "$(nix eval --raw ".#packages.$host_sys.hello-omninix.drvPath")" ] \
     || fail "[$1] packages output and host pkgs disagree on hello-omninix"
 
-  echo "-- [$1] roles.impermanent comes from omninix --"
-  [ "$(nix eval --raw '.#roles.impermanent')" = "$(nix eval --raw --impure --expr "toString (builtins.getFlake \"path:$OMNINIX_DIR\").roles.impermanent")" ] \
-    || fail "[$1] roles.impermanent is not omninix's"
+  echo "-- [$1] roles.impermanent is imported from omninix, not re-exported --"
+  [ "$(nix eval '.#nixosConfigurations.example-host.options.roles' --apply 'r: r ? impermanent')" = true ] \
+    || fail "[$1] host is missing omninix's roles.impermanent"
+  [ "$(nix eval '.#roles' --apply 'r: r ? impermanent')" = false ] \
+    || fail "[$1] roles output re-exports omninix's impermanent"
 
   echo "-- [$1] standalone home config evaluates --"
   sv="$(nix eval --raw '.#homeConfigurations.example-user.config.home.stateVersion')"

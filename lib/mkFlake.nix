@@ -23,7 +23,9 @@
   #   profilesDir             - Path to profiles directory (optional)
   #   extraProfiles           - Profiles merged with profilesDir; local wins ({})
   #   nixosModulesDir         - Path to NixOS modules directory (optional)
+  #   extraNixosModules       - NixOS modules merged with nixosModulesDir; local wins ({})
   #   homeManagerModulesDir   - Path to Home Manager modules directory (optional)
+  #   extraHomeManagerModules - HM modules merged with homeManagerModulesDir; local wins ({})
   #   overlaysDir             - Overlays: one per .nix file, or a file/default.nix returning a list (optional)
   #   packagesDir             - Packages exposed as pkgs.<name> and packages.<system>.<name> (optional)
   #   secretsPath             - Path to sops secrets file (optional)
@@ -38,12 +40,16 @@
   #   {
   #     nixosConfigurations = { hostName = nixosSystem; ... };
   #     homeConfigurations  = { userName = homeManagerConfiguration; ... };
-  #     hosts, roles, profiles, users = discovered attrsets;
+  #     hosts, users        = discovered attrsets;
+  #     roles, profiles, nixosModules, homeModules
+  #                         = this flake's own entries, without `internal/` ones
+  #                           and without extra* (so they can be shared);
   #     packages.<system>   = ...;  # only when packagesDir is set
   #   }
   #
   # Features:
   #   - Auto-discovers .nix files in all directories
+  #   - `internal/` in roles, profiles and module dirs: used here, never exported
   #   - Warns about missing directories
   #   - Ensures at least one host exists when hostsDir is given
   #   - Debug tracing when enabled
@@ -66,7 +72,9 @@
     profilesDir ? null,
     extraProfiles ? {},
     nixosModulesDir ? null,
+    extraNixosModules ? {},
     homeManagerModulesDir ? null,
+    extraHomeManagerModules ? {},
     overlaysDir ? null,
     packagesDir ? null,
     secretsPath ? null,
@@ -92,7 +100,9 @@
         profilesDir
         extraProfiles
         nixosModulesDir
+        extraNixosModules
         homeManagerModulesDir
+        extraHomeManagerModules
         overlaysDir
         packagesDir
         secretsPath
@@ -121,7 +131,9 @@
     profilesDir,
     extraProfiles,
     nixosModulesDir,
+    extraNixosModules,
     homeManagerModulesDir,
+    extraHomeManagerModules,
     overlaysDir,
     packagesDir,
     secretsPath,
@@ -147,38 +159,48 @@
     validatedPackagesDir = validateOptionalPath "packagesDir" packagesDir;
     validatedSecretsPath = validateOptionalPath "secretsPath" secretsPath;
   in let
-    # Auto-discover all .nix files in provided directories
-    # Uses mkDirMap to scan each directory and build nested attr sets
-    # Only includes directories that passed validation (non-null)
+    # Auto-discover all .nix files in provided directories. Hosts and users
+    # are plain scans; roles, profiles and module dirs also pick up their
+    # `internal/` subdir (discoverPieces): used here, never exported.
+    pieces = final.mapAttrs (_: final.omninix.discoverPieces) (
+      final.optionalAttrs (validatedRolesDir != null) {roles = validatedRolesDir;}
+      // final.optionalAttrs (validatedProfilesDir != null) {profiles = validatedProfilesDir;}
+      // final.optionalAttrs (validatedNixosModulesDir != null) {nixosModules = validatedNixosModulesDir;}
+      // final.optionalAttrs (validatedHomeManagerModulesDir != null) {homeManagerModules = validatedHomeManagerModulesDir;}
+    );
+
+    # This flake's own entries minus internal/: what it exports for sharing.
+    # Never includes extra* (re-exporting another flake's pieces would pin
+    # them at this flake's version and define them twice for consumers).
+    exportable = final.mapAttrs (_: p: p.exportable) pieces;
+
     dirs = let
       discovered = debugTrace "Scanning directories for .nix files..." (
         final.omninix.mkDirMap (
           final.optionalAttrs (validatedHostsDir != null) {hosts = validatedHostsDir;}
-          // final.optionalAttrs (validatedRolesDir != null) {roles = validatedRolesDir;}
           // final.optionalAttrs (validatedUsersDir != null) {users = validatedUsersDir;}
-          // final.optionalAttrs (validatedProfilesDir != null) {profiles = validatedProfilesDir;}
-          // final.optionalAttrs (validatedNixosModulesDir != null) {nixosModules = validatedNixosModulesDir;}
-          // final.optionalAttrs (validatedHomeManagerModulesDir != null) {homeManagerModules = validatedHomeManagerModulesDir;}
         )
+        // final.mapAttrs (_: p: p.all) pieces
       );
 
-      # Merge discovered roles with extraRoles. LOCAL WINS: your ./roles
-      # override imported extraRoles on name collision (warned below). A role's
-      # enable option name is baked into its file, so only one file per name may
-      # be imported — cherry-pick a library with `inherit (omninix.roles) ...` or
-      # `builtins.removeAttrs` (or omninix.lib.omninix.pick/drop) to avoid overlaps.
-      roleCollisions = builtins.attrNames (builtins.intersectAttrs (discovered.roles or {}) extraRoles);
-      profileCollisions = builtins.attrNames (builtins.intersectAttrs (discovered.profiles or {}) extraProfiles);
+      # Merge discovered entries with their extra* counterpart. LOCAL WINS:
+      # your own directory overrides imported extras on name collision
+      # (warned). A role's enable option name is baked into its file, so only
+      # one file per name may be imported — cherry-pick a library with
+      # `inherit (omninix.roles) ...` or `builtins.removeAttrs` (or
+      # omninix.lib.omninix.pick/drop) to avoid overlaps.
+      withExtra = kind: extra: let
+        local = discovered.${kind} or {};
+        collisions = builtins.attrNames (builtins.intersectAttrs local extra);
+      in
+        final.warnIf (collisions != [])
+        "OmniNix: local ${kind} override extra ${kind} for: ${toString collisions}"
+        (extra // local);
 
-      mergedRoles =
-        final.warnIf (roleCollisions != [])
-        "OmniNix: local ./roles override extraRoles for: ${toString roleCollisions}"
-        (extraRoles // (discovered.roles or {}));
-
-      mergedProfiles =
-        final.warnIf (profileCollisions != [])
-        "OmniNix: local ./profiles override extraProfiles for: ${toString profileCollisions}"
-        (extraProfiles // (discovered.profiles or {}));
+      mergedRoles = withExtra "roles" extraRoles;
+      mergedProfiles = withExtra "profiles" extraProfiles;
+      mergedNixosModules = withExtra "nixosModules" extraNixosModules;
+      mergedHomeManagerModules = withExtra "homeManagerModules" extraHomeManagerModules;
 
       result =
         discovered
@@ -186,6 +208,8 @@
           hosts = discovered.hosts or {};
           roles = mergedRoles;
           profiles = mergedProfiles;
+          nixosModules = mergedNixosModules;
+          homeManagerModules = mergedHomeManagerModules;
         };
     in
       # Emit discovery traces by threading them through the result so they
@@ -201,8 +225,9 @@
         "  Profiles (discovered): ${toString (builtins.attrNames (discovered.profiles or {}))}"
         "  Profiles (extra): ${toString (builtins.attrNames extraProfiles)}"
         "  Profiles (merged): ${toString (builtins.attrNames mergedProfiles)}"
-        "  NixOS Modules: ${toString (builtins.attrNames (discovered.nixosModules or {}))}"
-        "  Home Manager Modules: ${toString (builtins.attrNames (discovered.homeManagerModules or {}))}"
+        "  NixOS Modules (merged): ${toString (builtins.attrNames mergedNixosModules)}"
+        "  Home Manager Modules (merged): ${toString (builtins.attrNames mergedHomeManagerModules)}"
+        "  Exported: ${toString (final.mapAttrsToList (k: v: "${k}=[${toString (builtins.attrNames v)}]") exportable)}"
       ];
 
     # Overlays from overlaysDir: one overlay per discovered .nix file, or the
@@ -266,7 +291,12 @@
       inherit pkgsFor;
       hasPackages = validatedPackagesDir != null;
       outputs = {
-        inherit (dirs) hosts roles profiles users;
+        inherit (dirs) hosts users;
+        # Shareable: own entries only, without internal/ or extra*.
+        roles = exportable.roles or {};
+        profiles = exportable.profiles or {};
+        nixosModules = exportable.nixosModules or {};
+        homeModules = exportable.homeManagerModules or {};
         # Build all NixOS configurations from discovered files
         nixosConfigurations = debugTrace "Building NixOS configurations..." (
           final.omninix.mkNixosConfigurations (sharedArgs
