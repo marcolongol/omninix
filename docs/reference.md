@@ -50,6 +50,8 @@ setting). See [Packages and overlays](packages-and-overlays.md#persystem-pkgs-fl
 
 ### Portability check
 
+See [Sharing](sharing.md) for the rules these checks enforce.
+
 With `checks.portable.enable`, `nix flake check` also proves that your exported
 roles, profiles and modules work in someone else's flake. Each is a separate
 `checks.<system>.omninix-portable-*` attribute:

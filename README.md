@@ -207,6 +207,8 @@ These hold no matter how you build the flake:
   `pkgs.<name>`, and overriding nixpkgs.
 - [Third-party modules](docs/third-party-modules.md): disko, stylix,
   nixos-hardware and friends, per host or fleet-wide.
+- [Sharing roles, profiles and modules](docs/sharing.md): use other flakes'
+  pieces, write shareable ones, and the check that proves it.
 - [Reference](docs/reference.md): every option, the shipped roles and profiles,
   the library functions, and using OmniNix without flake-parts.
 
