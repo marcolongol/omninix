@@ -13,7 +13,7 @@
 #
 # Structure: the `omninix` namespace is assembled from focused files, each merged
 # into a single `lib.extend` fixpoint so cross-references (final.omninix.*) resolve
-# uniformly. This mirrors how nixpkgs' own lib is organized.
+# uniformly.
 #
 #   validations.nix            - assert* input guards, validate* path helpers
 #   utils.nix                  - generic helpers (mapAttrsMaybe, mkDebugTrace, pick, drop)
@@ -39,5 +39,4 @@
     }
   );
 in
-  # Return the extended lib for use in flakes
-  lib
+    lib

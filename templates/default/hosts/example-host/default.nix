@@ -25,10 +25,8 @@
   roles = {
     common.enable = true;
     # Add more roles as needed:
-    # docker.enable = true;
     # desktop.enable = true;     # example role in roles/desktop/ — also
     #                            # configures every user's home (see home.nix)
-    # gaming.enable = true;
     # impermanent.enable = true;   # omninix.roles.impermanent: ephemeral root, /persist kept.
     #                              # Uncomment the impermanence input in flake.nix and add
     #                              # imports = [inputs.impermanence.nixosModules.impermanence];

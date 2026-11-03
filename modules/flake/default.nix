@@ -57,8 +57,8 @@ in {
     };
   };
 
-  # Per-system flake checks: the eval test suites (Layer 1 lib + Layer 2
-  # config-behaviour) and, on Linux, the VM boot test. Run with `nix flake check`.
+  # Per-system flake checks: the eval test suites (Layers 1, 2 and 2b) and,
+  # on Linux, the VM tests. Run with `nix flake check`.
   perSystem = {
     pkgs,
     system,

@@ -1,6 +1,6 @@
 # OmniNix home module
 #
-# Defines the per-user persistence option seams under the omninix.* namespace.
+# Defines the per-user persistence options under the omninix.* namespace.
 # The actual wiring of these into impermanence's home.persistence happens in the
 # NixOS+HM bridge (modules/nixos) where the impermanence HM module — and thus the
 # home.persistence option — is guaranteed to exist. It cannot live here because

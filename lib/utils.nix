@@ -49,10 +49,10 @@
   #
   # Type: [String] -> AttrSet -> AttrSet
   #
-  # Throws (via getAttrs) if a requested name is absent, so typos surface.
+  # Throws, listing missing and available names, if a requested name is absent.
   #
   # Example:
-  #   omninix.pick [ "docker" "nginx" ] omninix.roles
+  #   omninix.pick [ "impermanent" ] omninix.roles
   pick = names: attrs: let
     missing = builtins.filter (n: !(attrs ? ${n})) names;
   in
@@ -70,6 +70,6 @@
   # Type: [String] -> AttrSet -> AttrSet
   #
   # Example:
-  #   omninix.drop [ "docker" ] omninix.roles
+  #   omninix.drop [ "developer" ] omninix.profiles
   drop = names: attrs: builtins.removeAttrs attrs names;
 }

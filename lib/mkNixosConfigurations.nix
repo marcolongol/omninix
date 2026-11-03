@@ -1,7 +1,7 @@
 # OmniNix NixOS configuration builder
 #
-# Receives the extended-lib fixpoint `final` (for version-agnostic helpers).
-# The flake `inputs` used to BUILD configs are a per-call argument (the
+# Receives the extended-lib fixpoint `final` (for generic helpers).
+# The flake `inputs` used to build configs are a per-call argument (the
 # consumer's), so their nixpkgs/home-manager/etc. drive the result.
 {final}: {
   # Build NixOS system configurations for multiple hosts
@@ -87,8 +87,6 @@
           inputs.nixpkgs.lib.nixosSystem {
             inherit system;
 
-            # Special arguments passed to all modules
-            # These become available as function parameters in modules
             specialArgs =
               {
                 inherit inputs hostName users profiles homeManagerModules secretsPath;
@@ -113,8 +111,7 @@
               # NOTE: the OmniNix home module is NOT imported here — it is a
               # Home Manager module and is brought in per-user via mkHomeModules
               # (modules/nixos). Importing it at the NixOS level would put
-              # HM-only config (e.g. home.persistence, osConfig) in the wrong
-              # scope.
+              # HM-only options (e.g. home.persistence) in the wrong scope.
               baseModules = [
                 nixpkgsModule
                 hostPath
@@ -124,14 +121,12 @@
               # Foundational modules auto-wire when their input is present
               # (home-manager and sops-nix underpin the rest of the framework).
               # Anything else (impermanence, disko, stylix, …) is a plain module
-              # the consumer imports themselves in a host/role/profile — there is
-              # no blessed-integration list to maintain.
+              # the consumer imports themselves in a host/role/profile.
               optionalInputModules =
                 (final.optional (inputs ? home-manager) inputs.home-manager.nixosModules.home-manager)
                 ++ (final.optional (inputs ? sops-nix) inputs.sops-nix.nixosModules.sops);
 
-              # User-provided modules from framework: roles, custom NixOS
-              # modules, and extra modules.
+              # Consumer modules: roles, nixosModules, and extraModules.
               userModules =
                 (final.attrValues nixosModules)
                 ++ (final.attrValues roles)

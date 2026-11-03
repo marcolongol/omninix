@@ -1,6 +1,5 @@
 # Example role with a home side: one flag on the host turns on both the system
-# config below and ./home.nix for every Home Manager user on that host. No
-# matching profile to keep in sync with the role.
+# config below and ./home.nix for every Home Manager user on that host.
 {
   config,
   lib,

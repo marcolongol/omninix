@@ -7,16 +7,13 @@
   #
   # Type: { inputs, lib, userFile?, profiles?, homeManagerModules?, ... } -> [Module]
   #
-  # Single source of truth for "what modules make up a user's home",
-  # shared by both consumers:
+  # The modules that make up a user's home, shared by both consumers:
   #   - modules/nixos (home-manager.users.<name>.imports), and
   #   - mkHomeConfigurations (standalone homeConfigurations.<user>).
   #
   # Returns, in order: the OmniNix home module, the user file (if any), the
   # optional sops-nix HM module (when that input exists), all profiles, all
-  # Home Manager modules, then any extraModules. Keeping this in one place
-  # means a new optional input or import only changes here, not in two
-  # hand-synced sites.
+  # Home Manager modules, then any extraModules.
   #
   # `inputs` is the consumer's flake inputs (for optional input detection).
   # `lib` is taken as a parameter (rather than closed over) so the NixOS

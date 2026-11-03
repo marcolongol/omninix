@@ -18,7 +18,7 @@
   #   true if valid, throws otherwise
   #
   # Example:
-  #   assertIsString "username" config.username
+  #   assertIsString "defaultSystem" defaultSystem
   assertIsString = name: value:
     if !builtins.isString value
     then throw "OmniNix: ${name} must be a string, got: ${builtins.typeOf value}"
@@ -37,7 +37,7 @@
   # Type: String -> List -> Any -> Bool
   #
   # Example:
-  #   assertOneOf "system" ["x86_64-linux" "aarch64-linux"] config.system
+  #   assertOneOf "system" ["x86_64-linux" "aarch64-linux"] system
   assertOneOf = name: allowed: value:
     if !(builtins.elem value allowed)
     then throw "OmniNix: ${name} must be one of ${toString allowed}, got: ${toString value}"
@@ -59,7 +59,7 @@
   # Type: String -> List -> Bool
   #
   # Example:
-  #   assertAllStrings "roles" config.roles
+  #   assertAllStrings "systems" systems
   assertAllStrings = name: list:
     if !builtins.all builtins.isString list
     then throw "OmniNix: ${name} must be a list of strings"
@@ -70,7 +70,7 @@
   # Type: String -> Any -> Bool
   #
   # Example:
-  #   assertNotEmpty "hostUsers" config.hostUsers
+  #   assertNotEmpty "hosts" hosts
   assertNotEmpty = name: value:
     if builtins.isList value && value == []
     then throw "OmniNix: ${name} cannot be an empty list"
@@ -115,7 +115,7 @@
     if path != null && !builtins.pathExists path
     then
       # lib.warn (not builtins.trace): emits on stderr as a proper warning and
-      # is suppressible by consumers, matching the warnIf used elsewhere.
+      # is suppressible by consumers, matching the warnIf in mkFlake.
       final.warn ''
         OmniNix: optional directory does not exist and will be ignored: ${name}
         Path: ${toString path}

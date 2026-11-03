@@ -432,9 +432,9 @@ in {
     expected = "aarch64-linux";
   };
 
-  # --- persistence option seam (impermanence glue) -------------------------
+  # --- persistence options -------------------------------------------------
 
-  # The system-level omninix.persistence aggregation seam exists and defaults
+  # The system-level omninix.persistence options exist and default
   # empty. roles.impermanent reads it into environment.persistence;
   # the user-level counterpart is wired into home.persistence by modules/nixos.
   testPersistenceDefaultsEmpty = {

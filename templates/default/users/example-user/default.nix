@@ -8,7 +8,6 @@
     common.enable = true;
     # Add more profiles as needed:
     # developer.enable = true;
-    # gamer.enable = true;
   };
 
   # User-specific packages

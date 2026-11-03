@@ -17,7 +17,7 @@
   # Roles this host assumes (enable-based).
   roles = {
     common.enable = true;
-    # docker.enable = true;
+    # <role>.enable = true;
   };
 
   # Users on this host. Privileged groups (wheel/docker) are opt-in via

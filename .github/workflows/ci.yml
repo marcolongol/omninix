@@ -34,10 +34,10 @@ jobs:
           extra_nix_config: |
             experimental-features = nix-command flakes
 
-      # The Layer 4 VM test boots a QEMU guest, which needs /dev/kvm. GitHub's
+      # The Layer 4 VM tests boot a QEMU guest, which needs /dev/kvm. GitHub's
       # x86_64 Linux runners provide KVM; this makes the device accessible to
       # the unprivileged runner user. The aarch64 runners have no nested virt,
-      # so the KVM setup and VM test are gated to x86_64 below.
+      # so the KVM setup and VM tests are gated to x86_64 below.
       - name: Enable KVM
         if: matrix.system == 'x86_64-linux'
         run: |
@@ -54,7 +54,7 @@ jobs:
         run: nix build .#checks.${{ matrix.system }}.vm -L
 
       # `nix flake check` builds every check for the runner's system, including
-      # the KVM-bound VM test — so it only runs on x86_64. aarch64 coverage is
+      # the KVM-bound VM tests, so it only runs on x86_64. aarch64 coverage is
       # the explicit `eval` build above plus the smoke test below.
       - name: Flake check (all outputs evaluate)
         if: matrix.system == 'x86_64-linux'
