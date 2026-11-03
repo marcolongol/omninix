@@ -71,10 +71,11 @@ in {
 
   config = lib.mkIf cfg.enable (lib.mkMerge [
     {
-      assertions = [
+      omninix.requirements = [
         {
-          assertion = hasPersistence;
-          message = "roles.impermanent needs impermanence's NixOS module: import inputs.impermanence.nixosModules.impermanence once (e.g. in nixosModulesDir).";
+          by = "roles.impermanent";
+          option = "environment.persistence";
+          module = "impermanence's NixOS module, once (e.g. omninix.extraNixosModules.impermanence = inputs.impermanence.nixosModules.impermanence)";
         }
       ];
       fileSystems."/persist".neededForBoot = true;

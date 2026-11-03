@@ -28,8 +28,8 @@
     # desktop.enable = true;     # example role in roles/desktop/ — also
     #                            # configures every user's home (see home.nix)
     # impermanent.enable = true;   # omninix.roles.impermanent: ephemeral root, /persist kept.
-    #                              # Uncomment the impermanence input in flake.nix and add
-    #                              # imports = [inputs.impermanence.nixosModules.impermanence];
+    #                              # Uncomment the impermanence input in flake.nix and its
+    #                              # extraNixosModules line there.
     #                              # Optional btrfs root wipe, after seeding /persist (docs/impermanence.md):
     #                              # impermanent.wipe = { enable = true; acknowledgeDataLoss = true; };
   };

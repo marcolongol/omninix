@@ -127,10 +127,18 @@ Enable it for a user: `profiles.my-profile.enable = true;`
 ## Third-party modules
 
 Ecosystem modules (impermanence, disko, stylix) are plain modules: declare the
-input in `flake.nix` and import it in a host, role, or `modules/nixos/*.nix`.
-Import each one **once**: impermanence's module can't be imported twice. The
-shipped `omninix.roles.impermanent` role uses impermanence but never imports it,
-and fails the build with a clear message if it's enabled without it.
+input in `flake.nix` and list it in `omninix.extraNixosModules` (every host) or
+import it in one host. Import each one **once**: impermanence's module can't be
+imported twice. The shipped `omninix.roles.impermanent` role uses impermanence
+but never imports it, and says so in a clear error if it's enabled without it.
+
+## Sharing
+
+Your roles, profiles and modules are exported, so other OmniNix flakes can reuse
+them (`extraRoles`, `extraProfiles`, …). Anything that reads your flake `inputs`
+or holds personal values goes in an `internal/` subdirectory, which is used here
+but never exported. See OmniNix's
+[sharing guide](https://github.com/marcolongol/omninix/blob/main/docs/sharing.md).
 
 ## Unfree Packages
 

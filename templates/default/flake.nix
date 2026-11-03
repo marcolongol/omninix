@@ -24,9 +24,10 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
-    # Anything beyond the foundational inputs above is a plain module you import
-    # yourself in a host/role/profile (see docs/third-party-modules.md). For
-    # example, for ephemeral-root setups:
+    # Anything beyond the foundational inputs above is a plain module: list it in
+    # omninix.extraNixosModules / extraHomeManagerModules below to import it for
+    # every host / user, or import it in one host (docs/third-party-modules.md).
+    # For example, for ephemeral-root setups:
     # impermanence.url = "github:nix-community/impermanence";
     # disko = { url = "github:nix-community/disko"; inputs.nixpkgs.follows = "nixpkgs"; };
   };
@@ -51,6 +52,8 @@
         usersDir = ./users;
         profilesDir = ./profiles;
         extraProfiles = omninix.profiles;
+        # Third-party modules for every host / every user, e.g.:
+        # extraNixosModules.impermanence = inputs.impermanence.nixosModules.impermanence;
         # Auto-discovered packages -> packages.<system>.<name> and pkgs.<name>
         packagesDir = ./packages;
         # Uncomment once you've set up sops-nix secrets:

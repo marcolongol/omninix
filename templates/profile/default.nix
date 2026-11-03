@@ -9,5 +9,11 @@
     # Home Manager configuration for this profile:
     # home.packages = with pkgs; [ ];
     # programs.foo.enable = true;
+
+    # Same patterns as roles for third-party modules (docs/sharing.md):
+    # omninix.requirements, and lib.optionalAttrs (options ? programs.foo) { ... }.
   };
 }
+
+# Profiles are exported for other flakes to reuse. One that reads your flake
+# `inputs` or holds personal values belongs in profiles/internal/ instead.

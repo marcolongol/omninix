@@ -365,7 +365,7 @@ in {
 
   # Without impermanence's module the role refuses to enable, and is inert when off.
   testImpermanentNeedsImpermanenceModule = {
-    expr = hasFailingAssertion "needs impermanence's NixOS module" (evalHost {
+    expr = hasFailingAssertion "roles.impermanent needs impermanence's NixOS module" (evalHost {
       roles.impermanent = ../roles/impermanent.nix;
       module = {...}: {
         fileSystems."/persist" = {
