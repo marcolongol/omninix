@@ -199,8 +199,38 @@
         "OmniNix: local ${kind} override extra ${kind} for: ${toString collisions}"
         (extra // local);
 
-      mergedRoles = withExtra "roles" extraRoles;
-      mergedProfiles = withExtra "profiles" extraProfiles;
+      # A role or profile from another flake that asks for `inputs` (or another
+      # OmniNix extra) would silently get *this* flake's value. Give it one
+      # that throws a readable error instead. Pieces that ask for none of them
+      # pass through untouched (same identity, so imports still dedup).
+      borrow = kind: name: piece: let
+        mod =
+          if builtins.isPath piece || builtins.isString piece
+          then import piece
+          else piece;
+        args = final.optionalAttrs (builtins.isFunction mod) (final.functionArgs mod);
+        poisoned = final.genAttrs (builtins.filter (a: args ? ${a}) ["inputs" "secretsPath" "hostName" "users" "profiles" "homeManagerModules" "mkHomeModules"]) (
+          a:
+            throw ''
+              OmniNix: ${kind}.${name} comes from another flake and reads `${a}`, which only
+              that flake has. It isn't shareable as is (see OmniNix's docs/sharing.md).''
+        );
+      in
+        if poisoned == {}
+        then piece
+        else let
+          id =
+            if builtins.isPath piece || builtins.isString piece
+            then toString piece
+            else "omninix-borrowed-${kind}-${name}";
+        in {
+          key = id;
+          _file = id;
+          imports = [(final.setFunctionArgs (a: mod (a // poisoned)) args)];
+        };
+
+      mergedRoles = withExtra "roles" (final.mapAttrs (borrow "roles") extraRoles);
+      mergedProfiles = withExtra "profiles" (final.mapAttrs (borrow "profiles") extraProfiles);
       mergedNixosModules = withExtra "nixosModules" extraNixosModules;
       mergedHomeManagerModules = withExtra "homeManagerModules" extraHomeManagerModules;
 

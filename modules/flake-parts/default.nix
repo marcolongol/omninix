@@ -106,67 +106,6 @@ in {
       default = false;
       description = "Trace OmniNix discovery and builds.";
     };
-
-    checks.portable = {
-      enable = lib.mkEnableOption "checks that this flake's exported roles, profiles and modules work in other flakes";
-      system = mkOption {
-        type = types.str;
-        default = cfg.defaultSystem;
-        defaultText = lib.literalExpression "config.omninix.defaultSystem";
-        description = "System the checks evaluate on (Linux).";
-      };
-      requires = mkOption {
-        type = types.attrsOf (types.attrsOf (types.listOf types.raw));
-        default = {};
-        example = lib.literalExpression "{ roles.desktop = [ inputs.stylix.nixosModules.stylix ]; }";
-        description = "Modules a consumer must bring, per piece (NixOS modules for roles/nixosModules, Home Manager modules for profiles/homeModules).";
-      };
-      scenarios = mkOption {
-        type = types.attrsOf (types.submodule {
-          options = {
-            nixos = mkOption {
-              type = types.raw;
-              default = {};
-              description = "NixOS module enabling pieces with sample values.";
-            };
-            home = mkOption {
-              type = types.raw;
-              default = {};
-              description = "Home Manager module for the probe user.";
-            };
-            requires = mkOption {
-              type = types.listOf types.raw;
-              default = [];
-              description = "NixOS modules this scenario needs.";
-            };
-            homeRequires = mkOption {
-              type = types.listOf types.raw;
-              default = [];
-              description = "Home Manager modules this scenario needs.";
-            };
-          };
-        });
-        default = {};
-        description = "Deep evaluations with pieces enabled.";
-      };
-      exclude = mkOption {
-        type = types.listOf types.str;
-        default = [];
-        example = ["roles.desktop"];
-        description = "Pieces not checked yet, as \"<kind>.<name>\" (warns while non-empty).";
-      };
-      enableOptions = mkOption {
-        type = types.attrsOf (types.attrsOf types.str);
-        default = {};
-        example = {nixosModules.foo = "programs.foo.enable";};
-        description = "Enable options for the enabled-without-requires check; roles and profiles default to roles.<camelName>.enable / profiles.<camelName>.enable.";
-      };
-      allow = mkOption {
-        type = types.listOf types.str;
-        default = [];
-        description = "Strings the personal-value lint ignores.";
-      };
-    };
   };
 
   config = {
@@ -187,16 +126,8 @@ in {
 
     perSystem = {system, ...}: let
       pkgs = core.pkgsFor system;
-      portable = cfg.checks.portable;
     in {
       _module.args.pkgs = lib.mkDefault pkgs;
-      checks = lib.mkIf (portable.enable && system == portable.system) (
-        omninixLib.omninix.mkPortableCheck {
-          inherit inputs;
-          inherit (portable) system requires scenarios exclude enableOptions allow;
-          pieces = {inherit (core.outputs) roles profiles nixosModules homeModules;};
-        }
-      );
       # From OmniNix's pkgs, not the overridable arg, so they match host pkgs.
       packages = lib.mapAttrs (_: lib.mkDefault) (core.packagesOf pkgs);
     };

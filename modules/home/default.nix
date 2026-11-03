@@ -7,6 +7,8 @@
 # this module is also imported by standalone homeConfigurations, which have no
 # impermanence module (so home.persistence would not exist).
 {lib, ...}: {
+  imports = [../requirements.nix];
+
   # Profiles are enable-based: each profile file declares its own
   # `options.profiles.<name>.enable` and gates its config with it.
   options.omninix.persistence = {

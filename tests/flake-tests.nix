@@ -50,11 +50,14 @@
 
   toplevel = c: c.nixosConfigurations.test.config.system.build.toplevel.drvPath;
 
-  # Portability check: names of the checks that fail for a set of pieces.
-  portable = ./fixtures/portable;
-  portableCheck = args: omninix.mkPortableCheck ({inherit inputs system;} // args);
-  failingChecks = checks: builtins.attrNames (lib.filterAttrs (_: d: !(builtins.tryEval d.drvPath).success) checks);
-  badRole = case: failingChecks (portableCheck {pieces.roles.x = portable + "/${case}/roles/x.nix";});
+  # A host from the flake fixture with extra roles/profiles and modules.
+  withExtras = extra: modules:
+    ((omninix.mkFlake consumerInputs (settings // {defaultSystem = system;} // extra))
+      .nixosConfigurations
+      .test
+      .extendModules {inherit modules;})
+    .config;
+  failedAssertions = cfg: map (a: a.message) (builtins.filter (a: !a.assertion) cfg.assertions);
 
   # A consumer's own nixpkgs with the exported overlay (twice: shadowing).
   withOverlays = overlays: import inputs.nixpkgs {inherit system overlays;};
@@ -336,108 +339,54 @@ in {
     expected = false;
   };
 
-  # Portable pieces pass every check, including the enabled-without-requires
-  # ones (a failed assertion is the readable outcome) and a scenario.
-  testPortableGoodPieces = {
+  # omninix.requirements: a missing module becomes one readable assertion.
+  testRequirementMissing = {
+    expr = failedAssertions (withExtras {extraRoles.requiring = sharing + "/requiring-role.nix";} [{roles.requiring.enable = true;}]);
+    expected = ["roles.requiring needs the fixture dependency; import it (the option `fixtureDep.value` doesn't exist)."];
+  };
+
+  testRequirementSatisfied = {
     expr = let
-      checks = portableCheck {
-        pieces = {
-          roles.widget = portable + "/good/roles/widget.nix";
-          profiles.tool = portable + "/good/profiles/tool.nix";
-        };
-        requires.roles.widget = [(portable + "/dep.nix")];
-        scenarios.widget = {
-          nixos = {
-            roles.widget.enable = true;
-            # Container check hosts must not use the host's resolv.conf.
-            services.resolved.enable = true;
-          };
-          home.profiles.tool.enable = true;
-          requires = [(portable + "/dep.nix")];
-        };
-      };
+      cfg = withExtras {extraRoles.requiring = sharing + "/requiring-role.nix";} [(sharing + "/dep.nix") {roles.requiring.enable = true;}];
     in {
-      names = builtins.attrNames checks;
-      failing = failingChecks checks;
+      failed = failedAssertions cfg;
+      inherit (cfg.fixtureDep) value;
     };
     expected = {
-      names = [
-        "omninix-portable-inert"
-        "omninix-portable-profiles-tool"
-        "omninix-portable-profiles-tool-enabled"
-        "omninix-portable-roles-widget"
-        "omninix-portable-roles-widget-enabled"
-        "omninix-portable-scenario-widget"
-        "omninix-portable-static"
-      ];
-      failing = [];
+      failed = [];
+      value = "set";
     };
   };
 
-  # Each non-portable piece fails the check aimed at it.
-  testPortableCatchesArgs = {
-    expr = badRole "bad-args";
-    expected = ["omninix-portable-static"];
-  };
-  testPortableCatchesIndirectArgs = {
-    expr = badRole "bad-specialargs";
-    expected = ["omninix-portable-inert" "omninix-portable-static"];
-  };
-  testPortableCatchesCoordinates = {
-    expr = badRole "bad-coords";
-    expected = ["omninix-portable-static"];
-  };
-  testPortableCatchesPersonalValues = {
-    expr = badRole "bad-personal";
-    expected = ["omninix-portable-static"];
-  };
-  testPortableCatchesInternalImports = {
-    expr = badRole "bad-internal";
-    expected = ["omninix-portable-roles-x" "omninix-portable-static"];
-  };
-  testPortableCatchesActOnImport = {
-    expr = badRole "bad-not-inert";
-    expected = ["omninix-portable-inert"];
-  };
-  testPortableCatchesUngatedDependency = {
-    expr = badRole "bad-undeclared";
-    expected = ["omninix-portable-inert" "omninix-portable-roles-x" "omninix-portable-roles-x-enabled"];
-  };
-  testPortableCatchesThrowWhenEnabled = {
-    expr = badRole "bad-enabled";
-    expected = ["omninix-portable-roles-x-enabled"];
+  # Same in Home Manager. Standalone home configs raise failed assertions
+  # eagerly (with the message), so check that it fails, against a control.
+  testRequirementHome = let
+    home = extra: (omninix.mkFlake consumerInputs (settings // {defaultSystem = system;} // extra)).homeConfigurations.alice;
+  in {
+    expr = {
+      missing = (builtins.tryEval (builtins.attrNames (home {extraProfiles.requiring = sharing + "/requiring-profile.nix";}))).success;
+      control = (builtins.tryEval (builtins.attrNames (home {}))).success;
+    };
+    expected = {
+      missing = false;
+      control = true;
+    };
   };
 
-  # The allow list exempts a string from the personal-value lint.
-  testPortableAllowList = {
-    expr = failingChecks (portableCheck {
-      pieces.roles.x = portable + "/bad-personal/roles/x.nix";
-      allow = ["10.0.0.4"];
-    });
-    expected = [];
-  };
-
-  testPortableExclude = {
-    expr = builtins.attrNames (portableCheck {
-      pieces.roles.x = portable + "/bad-args/roles/x.nix";
-      exclude = ["roles.x"];
-    });
-    expected = ["omninix-portable-inert" "omninix-portable-static"];
-  };
-
-  # The flake-parts option wires them into checks.<system>.
-  testFlakeModulePortableChecks = {
-    expr = builtins.filter (lib.hasPrefix "omninix-portable") (builtins.attrNames (evalSharing {omninix.checks.portable.enable = true;}).checks.${system});
-    expected = [
-      "omninix-portable-homeModules-hmod"
-      "omninix-portable-inert"
-      "omninix-portable-nixosModules-mod"
-      "omninix-portable-profiles-pub"
-      "omninix-portable-profiles-pub-enabled"
-      "omninix-portable-roles-public"
-      "omninix-portable-roles-public-enabled"
-      "omninix-portable-static"
-    ];
+  # A borrowed role reading `inputs` gets a throwing value, not this flake's.
+  testBorrowedRoleInputsThrows = {
+    expr = let
+      cfg = withExtras {extraRoles.borrowed = sharing + "/borrowed-inputs-role.nix";};
+    in {
+      declared = (cfg []) ? roles;
+      disabledFine = (builtins.tryEval (cfg []).environment.etc).success;
+      enabledThrows = (builtins.tryEval (cfg [{roles.borrowed.enable = true;}]).environment.etc.borrowed.text).success;
+    };
+    expected = {
+      declared = true;
+      disabledFine = true;
+      enabledThrows = false;
+    };
   };
 
   # Hosts import every role and NixOS module: own, internal/ and extra*.

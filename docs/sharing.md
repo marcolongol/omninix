@@ -2,7 +2,7 @@
 
 Your roles, profiles and modules can be used by other OmniNix flakes, and
 theirs by yours. This page covers how sharing works, how to write pieces that
-are safe to share, and the check that proves it.
+are safe to share, and what a consumer sees when something's missing.
 
 A worked example is [nix-config](https://github.com/marcolongol/nix-config):
 its roles, profiles and modules are all shared, and its personal parts live
@@ -109,19 +109,21 @@ attribute itself in `optionalAttrs`, never `mkIf`:
 }
 ```
 
-**Required dependency**: the piece is useless without it. Assert it, so a
-consumer gets a readable message, and guard the settings anyway:
+**Required dependency**: the piece is useless without it. Declare it in
+`omninix.requirements`, so a consumer gets one readable error, and guard the
+settings anyway:
 
 ```nix
 {config, lib, options, ...}: {
   config = lib.mkIf config.roles.desktop.enable (lib.mkMerge [
     {
-      assertions = [{
-        assertion = options ? stylix.image;
-        message = "roles.desktop needs the stylix NixOS module";
+      omninix.requirements = [{
+        by = "roles.desktop";
+        option = "stylix.image";
+        module = "stylix's NixOS module (inputs.stylix.nixosModules.stylix)";
       }];
       # A home half that also uses stylix only comes with it; otherwise Home
-      # Manager's "option does not exist" error would hide the assertion.
+      # Manager's "option does not exist" error would hide the message.
       home-manager.sharedModules = lib.optional (options ? stylix.image) ./home;
     }
     (lib.optionalAttrs (options ? stylix.image) {
@@ -130,6 +132,15 @@ consumer gets a readable message, and guard the settings anyway:
   ]);
 }
 ```
+
+A consumer who enables the role without stylix gets:
+
+```
+roles.desktop needs stylix's NixOS module (inputs.stylix.nixosModules.stylix);
+import it (the option `stylix.image` doesn't exist).
+```
+
+`omninix.requirements` works the same in Home Manager pieces.
 
 Security-bearing dependencies (secrets, deploy tooling, impermanence, PAM) are
 always required, so a missing import fails loudly instead of silently dropping
@@ -180,47 +191,19 @@ package = lib.mkOption {
 
 That's the same derivation as your `pkgs.surfshark`.
 
-## The portability check
+## What a consumer sees
 
-`nix flake check` can prove your exported pieces follow these rules:
-
-```nix
-omninix.checks.portable = {
-  enable = true;
-  # What a consumer must bring, per piece.
-  requires.roles.desktop = [inputs.stylix.nixosModules.stylix];
-  # Deep evaluations with pieces enabled and sample values.
-  scenarios.base.nixos = {
-    roles.nfsClient = {
-      enable = true;
-      server = "nas.example:/export";
-      shares = ["Media"];
-    };
-  };
-  scenarios.base.home.profiles.developer.enable = true;
-  # Pieces not converted yet (warns while non-empty).
-  exclude = [];
-};
-```
-
-It evaluates your pieces in a bare OmniNix host, a container with one probe user,
-where the OmniNix extras throw if a piece uses them. Each check is its own
-`checks.<system>.omninix-portable-*` attribute:
-
-| Check | Fails when |
+| When | Error |
 |---|---|
-| `-static` | a file takes a banned argument or reads it via `_module.specialArgs`, fetches at eval time, imports from `internal/`, or contains personal values (emails, private IPs, `/home/<name>`, keys, coordinates) |
-| `-inert` | importing every piece without enabling any changes the system (rule 4) |
-| `-<kind>-<name>` | the piece doesn't evaluate alone with its `requires` (an unguarded dependency, rule 3), or pulls in an `internal/` file |
-| `-<kind>-<name>-enabled` | enabling it **without** its `requires` throws instead of failing an assertion (rule 3) |
-| `-scenario-<name>` | a scenario doesn't evaluate |
+| a piece needs a module they didn't import | its `omninix.requirements` message (rule 3) |
+| a piece sets an option of a module that isn't there, unguarded | "The option `…` does not exist", pointing at the piece's file |
+| a borrowed role or profile reads `inputs` (or `secretsPath`, `hostName`, …) | "roles.foo comes from another flake and reads `inputs`, which only that flake has" |
+| a required value is missing (like `roles.nfsClient.server`) | the piece's own assertion |
 
-Use `exclude` while converting existing pieces; it lists what's left. `allow`
-exempts strings from the personal-value lint, and `enableOptions` names a
-module's enable option when it isn't `roles/profiles.<camelName>.enable`.
+For borrowed roles and profiles, OmniNix replaces those arguments with values
+that throw only when used, so a piece that merely lists them still works.
+Third-party modules in `extraNixosModules`/`extraHomeManagerModules` are left
+alone: some expect your `inputs` on purpose.
 
-What it can't check: whether a value is personal beyond those patterns, and
-whether a default is safe (rules 2 and 6). Review those by hand.
-
-Without the flake-parts module, call `omninix.lib.omninix.mkPortableCheck`
-directly ([reference](reference.md#portability-check)).
+Nothing checks rules 2 and 6 for you (personal values, safe defaults): review
+those by hand before sharing.
