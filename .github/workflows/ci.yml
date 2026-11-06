@@ -25,7 +25,7 @@ jobs:
             runner: ubuntu-latest
           - system: aarch64-linux
             runner: ubuntu-24.04-arm
-          # Standalone Home Manager only: NixOS hosts don't build on macOS.
+          # Standalone homes and nix-darwin hosts; NixOS hosts don't build on macOS.
           - system: aarch64-darwin
             runner: macos-latest
     steps:
@@ -49,7 +49,7 @@ jobs:
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
 
-      # On darwin this is Layers 1 and 2c only (lib, standalone homes).
+      # On darwin this is Layers 1, 2c and 2d (lib, standalone homes, darwin hosts).
       - name: Eval tests (Layer 1 lib + Layer 2 config)
         run: nix build .#checks.${{ matrix.system }}.eval -L
 

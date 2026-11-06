@@ -1,6 +1,6 @@
 # omninix.requirements: a piece declares the modules it needs, and gets one
-# readable error when they aren't imported. Shared by the NixOS and Home
-# Manager modules (both have `assertions`).
+# readable error when they aren't imported. Shared by the NixOS, darwin and
+# Home Manager modules (all have `assertions`).
 {
   config,
   lib,

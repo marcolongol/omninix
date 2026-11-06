@@ -1,8 +1,8 @@
 # OmniNix Library
 #
 # nixpkgs.lib extended with an `omninix` namespace: the builders and the
-# engine behind flakeModules.default (internal), plus the helpers documented
-# (internal: the public API is the flake's modules).
+# engine behind flakeModules.default. All of it is internal; the public API is
+# the flake's modules.
 #
 # Type: { inputs :: { nixpkgs :: Flake, ... } } -> Lib
 #

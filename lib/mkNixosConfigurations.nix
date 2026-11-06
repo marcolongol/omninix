@@ -8,10 +8,6 @@
   #
   # Type: { ... } -> AttrSet
   #
-  # This is the core function that creates NixOS system configurations
-  # for all hosts using the OmniNix framework. It handles multi-architecture
-  # builds, optional dependencies, and module composition.
-  #
   # Parameters:
   #   inputs              - (required) Flake inputs used to build configs
   #   hosts               - (required) AttrSet of { hostName = hostPath }
@@ -27,25 +23,19 @@
   #   overlays            - List of Nixpkgs overlays
   #   extraModules        - List of additional modules to include
   #   specialArgs         - Additional arguments passed to modules
-  #   secretsPath         - Path to sops secrets file (or null)
+  #   secretsPath         - sops secrets directory (or null)
   #   omninixNixosModule  - Path to OmniNix NixOS module
   #   debug               - Enable verbose debug output (false)
   #
   # Returns:
   #   AttrSet of { hostName = nixosSystem }
   #
-  # Features:
-  #   - Per-host system architecture via hostSystems
-  #   - Optional dependency detection (home-manager, sops-nix)
-  #   - Automatic module composition
-  #   - Debug tracing when enabled
-  #
   # Example:
   #   mkNixosConfigurations {
   #     hosts = { laptop = ./hosts/laptop.nix; };
   #     roles = { desktop = ./roles/desktop.nix; };
   #     users = { alice = ./users/alice; };
-  #     secretsPath = ./secrets.yaml;
+  #     secretsPath = ./secrets;
   #     debug = true;  # Enable debug output
   #   }
   mkNixosConfigurations = {
@@ -124,8 +114,8 @@
                 #
                 # NOTE: the OmniNix home module is NOT imported here — it is a
                 # Home Manager module and is brought in per-user via mkHomeModules
-                # (modules/nixos). Importing it at the NixOS level would put
-                # HM-only options (e.g. home.persistence) in the wrong scope.
+                # (modules/home-manager.nix). Importing it at the NixOS level would
+                # put HM-only options (e.g. home.persistence) in the wrong scope.
                 baseModules = [
                   nixpkgsModule
                   hostPath

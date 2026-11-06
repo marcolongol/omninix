@@ -8,7 +8,8 @@
   # Type: { inputs, lib, userName?, userFile?, secretsPath?, profiles?, homeManagerModules?, ... } -> [Module]
   #
   # The modules that make up a user's home, shared by both consumers:
-  #   - modules/nixos (home-manager.users.<name>.imports), and
+  #   - modules/home-manager.nix (home-manager.users.<name>.imports on NixOS
+  #     and darwin hosts), and
   #   - mkHomeConfigurations (standalone homeConfigurations.<user>).
   #
   # Returns, in order: the OmniNix home module, the user file (if any), the

@@ -695,8 +695,7 @@ in {
     expected = false;
   };
 
-  # It reaches HM by closure, so it survives an empty extraSpecialArgs (the
-  # portability check's setup).
+  # It reaches HM by closure, so it survives an empty extraSpecialArgs.
   testHomeSopsDefaultWithoutSpecialArgs = {
     expr =
       toString

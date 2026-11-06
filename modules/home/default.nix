@@ -9,8 +9,6 @@
 {lib, ...}: {
   imports = [../requirements.nix];
 
-  # Profiles are enable-based: each profile file declares its own
-  # `options.profiles.<name>.enable` and gates its config with it.
   options.omninix.persistence = {
     directories = lib.mkOption {
       type = lib.types.listOf lib.types.str;

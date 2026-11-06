@@ -1,11 +1,11 @@
 # OmniNix flake checks.
 #
 # Exposes the eval test suites (Layer 1 lib, Layer 2 config-behaviour, Layer 2b
-# flake entry points, Layer 2c standalone homes) as a single `eval` derivation
-# that fails — printing the offending cases — if any lib.runTests case's result
-# differs from its expected value. `home` builds a standalone home on every
-# system, `darwin` a nix-darwin system on darwin; the VM tests (Layer 4) are
-# added on Linux.
+# flake entry points, Layer 2c standalone homes, Layer 2d darwin hosts) as a
+# single `eval` derivation that fails — printing the offending cases — if any
+# lib.runTests case's result differs from its expected value. `home` builds a
+# standalone home on every system, `darwin` a nix-darwin system on darwin; the
+# VM tests (Layer 4) are added on Linux.
 #
 # Run everything with: nix flake check
 {

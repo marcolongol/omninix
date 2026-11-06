@@ -10,8 +10,7 @@
 }: let
   cfg = config.omninix;
 
-  # Users activated on this host (enable-based). Roles and profiles likewise
-  # declare their own `options.roles.<name>.enable` / `profiles.<name>.enable`.
+  # Users activated on this host (enable-based).
   activeUsers = lib.attrNames (lib.filterAttrs (_: u: u.enable) cfg.hostUsers);
 
   # Does an active user have a usable password? Checks the resolved options

@@ -24,7 +24,7 @@ in {
 
     # Expose the library
     inherit lib;
-    # Expose global roles and profiles
+    # Expose the shipped roles and profiles
     inherit (dirs) profiles roles;
 
     # The secure core and the omninix.* options, without the builders: for a
@@ -69,8 +69,9 @@ in {
     };
   };
 
-  # Per-system flake checks: the eval test suites (Layers 1, 2 and 2b) and,
-  # on Linux, the VM tests. Run with `nix flake check`.
+  # Per-system flake checks: the eval test suites, a standalone home build, a
+  # nix-darwin build on darwin, and the VM tests on Linux. Run with
+  # `nix flake check`.
   perSystem = {
     pkgs,
     system,

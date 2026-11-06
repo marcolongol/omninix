@@ -90,7 +90,7 @@
         (extra // local);
 
       # A role or profile from another flake that asks for `inputs` (or another
-      # OmniNix extra) would silently get *this* flake's value. Give it one
+      # OmniNix module argument) would silently get *this* flake's value. Give it one
       # that throws a readable error instead. Pieces that ask for none of them
       # pass through untouched (same identity, so imports still dedup).
       borrow = kind: name: piece: let
@@ -227,7 +227,7 @@
     nixosHosts = final.filterAttrs (name: _: !(isDarwinHost name)) allHosts;
     forHosts = hosts: final.filterAttrs (name: _: hosts ? ${name});
 
-    # Args shared by both builders, so the discovered directories and
+    # Args shared by the builders, so the discovered directories and
     # global settings are spelled out once. Each builder adds its own
     # specifics on top (hosts/roles/nixosModules for NixOS). `inputs` is the
     # consumer's, so their nixpkgs/home-manager/etc. build the configs.
@@ -266,7 +266,7 @@
         nixosModules = exportable.nixosModules or {};
         darwinModules = exportable.darwinModules or {};
         homeModules = exportable.homeManagerModules or {};
-        # Build all NixOS configurations from discovered files
+        # The NixOS hosts.
         nixosConfigurations = debugTrace "Building NixOS configurations..." (
           final.omninix.mkNixosConfigurations (sharedArgs
             // {

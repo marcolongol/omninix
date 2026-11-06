@@ -41,8 +41,9 @@
     ...
   } @ inputs:
     flake-parts.lib.mkFlake {inherit inputs;} {
-      # nixosConfigurations.<host> and, from ./users, homeConfigurations.<user>
-      # for standalone Home Manager (`home-manager switch --flake .#<user>`).
+      # nixosConfigurations.<host> (darwinConfigurations.<host> for Macs) and,
+      # from ./users, homeConfigurations.<user> for standalone Home Manager
+      # (`home-manager switch --flake .#<user>`).
       imports = [omninix.flakeModules.default];
 
       # Systems for perSystem outputs (packages, formatter, devShells, ...).

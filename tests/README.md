@@ -28,7 +28,7 @@ nix flake check                 # eval checks + VM test (no template smoke)
 
 ## How the eval checks fail
 
-`checks.<system>.eval` runs `lib.runTests` over Layers 1, 2 and 2b. `runTests` returns
+`checks.<system>.eval` runs `lib.runTests` over Layers 1 to 2d. `runTests` returns
 the list of cases whose `expr` differs from `expected`; the derivation builds
 iff that list is empty, otherwise it prints each failing case (name, expected,
 got) and exits non-zero. No `|| true`, no unconditional "passed".

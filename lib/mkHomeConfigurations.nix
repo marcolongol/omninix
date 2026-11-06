@@ -13,7 +13,7 @@
   # output, activatable with `home-manager switch --flake .#<username>`.
   #
   # The per-user module set is identical to the one wired into
-  # home-manager.users.<name> in modules/nixos (the OmniNix home module,
+  # home-manager.users.<name> by modules/home-manager.nix (the OmniNix home module,
   # the user file, profiles, and Home Manager modules), so a user file can
   # be shared between the NixOS submodule path and standalone use.
   #
@@ -82,7 +82,7 @@
               # supply these, so infer them from the directory name. mkDefault
               # lets a user's own config override them. homeDirectory follows the
               # platform (darwin uses /Users), except root's, which is /root.
-              # The stateVersion default matches the NixOS fallback in modules/nixos.
+              # The stateVersion default matches the host one in modules/home-manager.nix.
               identityModule = {lib, ...}: {
                 home.username = lib.mkDefault userName;
                 home.homeDirectory = lib.mkDefault (
@@ -100,9 +100,9 @@
               inputs'.home-manager.lib.homeManagerConfiguration {
                 inherit pkgs;
 
-                # Matches the modules/nixos extraSpecialArgs (inputs,
+                # Matches the modules/home-manager.nix extraSpecialArgs (inputs,
                 # secretsPath) so a single user file can be shared between
-                # the NixOS submodule and standalone paths.
+                # hosts and standalone use.
                 extraSpecialArgs =
                   {
                     inherit secretsPath;
@@ -110,9 +110,9 @@
                   }
                   // specialArgs;
 
-                # Same import set as home-manager.users.<name> in
-                # modules/nixos (via the shared mkHomeModules helper), plus
-                # the standalone-only identity module.
+                # Same import set as home-manager.users.<name> on hosts (via
+                # the shared mkHomeModules helper), plus the standalone-only
+                # identity module.
                 modules =
                   [identityModule]
                   ++ final.omninix.mkHomeModules {

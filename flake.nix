@@ -9,8 +9,7 @@
     flake-parts.url = "github:hercules-ci/flake-parts";
 
     home-manager = {
-      # Match the nixpkgs release (master HM tracks unstable and rejects the
-      # 26.05 stateVersion).
+      # Match the nixpkgs release: Home Manager warns on a mismatched one.
       url = "github:nix-community/home-manager/release-26.05";
       inputs.nixpkgs.follows = "nixpkgs";
     };

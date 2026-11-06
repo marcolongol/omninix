@@ -1,9 +1,8 @@
 #!/usr/bin/env bash
 # Run the full OmniNix test suite.
 #
-#   - `nix flake check` builds the eval checks (Layer 1 lib, Layer 2
-#     config-behaviour, Layer 2b flake entry points) and, on Linux, the
-#     Layer 4 VM tests.
+#   - `nix flake check` builds the eval checks (Layers 1 to 2d), a standalone
+#     home and, on Linux, the Layer 4 VM tests.
 #   - tests/smoke.sh initialises the template and asserts it evaluates.
 #
 # FAST=1 skips the heavy VM tests (builds only the eval check + smoke), useful

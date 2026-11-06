@@ -20,9 +20,12 @@
     # set its options only when it's imported, and say what's missing if the
     # role can't work without it (docs/sharing.md):
     #   omninix.requirements = [{ by = "roles.myrole"; option = "foo.enable"; module = "foo's NixOS module"; }];
-    #   with lib.mkMerge [ { ... } (lib.optionalAttrs (options ? foo) { foo.enable = true; }) ]
+    #   and the settings as: lib.optionalAttrs (options ? foo) { foo.enable = true; }
   };
 }
 # Roles are exported for other flakes to reuse. One that reads your flake
 # `inputs` or holds personal values belongs in roles/internal/ instead.
+#
+# For Mac hosts, add a darwin.nix next to this file that declares the same
+# roles.myrole.enable and sets nix-darwin options.
 
