@@ -461,6 +461,25 @@ in {
     expected = ["hmod"];
   };
 
+  # NixOS hosts get NixOS halves only, so a darwin-only extra role (a
+  # directory without default.nix) is skipped instead of failing to import.
+  # `roles` exports every own role, darwin-only ones included.
+  testPlatformRolesNixosHost = let
+    out = flakeWith {
+      rolesDir = ./fixtures/platforms/roles;
+      extraRoles.extra-darwin = ./fixtures/platforms/roles/darwin-only;
+    };
+  in {
+    expr = {
+      options = builtins.attrNames out.nixosConfigurations.test.options.fixture;
+      exported = builtins.attrNames out.roles;
+    };
+    expected = {
+      options = ["bothNixos" "file" "nixosDir"];
+      exported = ["both" "darwin-only" "file" "nixos-dir"];
+    };
+  };
+
   # The same name in a dir and its internal/ throws instead of one winning.
   testSharingInternalClashThrows = {
     expr =

@@ -34,7 +34,15 @@
   #
   #   forAllNixFiles ./hosts (path: path)
   #   => { laptop = ./hosts/laptop.nix; server = ./hosts/server; }
-  forAllNixFiles = dir: f:
+  forAllNixFiles = final.omninix.forAllNixFilesWith ["default.nix"];
+
+  # forAllNixFiles, where a directory counts if it holds any of `markers`
+  #
+  # Type: [String] -> Path -> (Path -> a) -> AttrSet
+  #
+  # Example (roles: a directory may hold only a darwin half):
+  #   forAllNixFilesWith ["default.nix" "darwin.nix"] ./roles (p: p)
+  forAllNixFilesWith = markers: dir: f:
     if builtins.pathExists dir
     then
       final.pipe dir [
@@ -58,7 +66,7 @@
             then final.nameValuePair (final.removeSuffix ".nix" fn) (f (dir + "/${fn}"))
             # A path here too: the interpolated string names a store copy of
             # `dir` that `nix flake check --no-build` never creates.
-            else if type == "directory" && builtins.pathExists (dir + "/${fn}/default.nix")
+            else if type == "directory" && builtins.any (m: builtins.pathExists (dir + "/${fn}/${m}")) markers
             then final.nameValuePair fn (f (dir + "/${fn}"))
             else null
         ))
@@ -79,9 +87,15 @@
   #   roles/{desktop.nix, internal/site.nix}
   #   discoverPieces ./roles
   #   => { all = { desktop = …; site = …; }; exportable = { desktop = …; }; }
-  discoverPieces = dir: let
-    top = builtins.removeAttrs (final.omninix.forAllNixFiles dir (fn: fn)) ["internal"];
-    internal = final.omninix.forAllNixFiles (dir + "/internal") (fn: fn);
+  discoverPieces = final.omninix.discoverPiecesWith ["default.nix"];
+
+  # discoverPieces for roles: a role directory may hold a NixOS half
+  # (default.nix), a darwin half (darwin.nix), or both.
+  discoverRoles = final.omninix.discoverPiecesWith ["default.nix" "darwin.nix"];
+
+  discoverPiecesWith = markers: dir: let
+    top = builtins.removeAttrs (final.omninix.forAllNixFilesWith markers dir (fn: fn)) ["internal"];
+    internal = final.omninix.forAllNixFilesWith markers (dir + "/internal") (fn: fn);
     clashes = builtins.attrNames (builtins.intersectAttrs top internal);
   in
     if clashes != []
@@ -90,6 +104,30 @@
       all = top // internal;
       exportable = top;
     };
+
+  # Split roles into the halves each kind of host imports
+  #
+  # Type: AttrSet -> { nixos :: AttrSet; darwin :: AttrSet; inline :: [String]; }
+  #
+  # A role directory gives its default.nix to NixOS (as the directory path,
+  # unchanged) and its darwin.nix to darwin. A file, or a value that isn't a
+  # path (a function or attrset module), is NixOS only: there's nothing to
+  # look inside. `inline` names those non-path values, so a flake with darwin
+  # hosts can warn that they can't carry a darwin half.
+  #
+  # Example:
+  #   splitRoles { docker = ./roles/docker.nix; desktop = ./roles/desktop; }
+  #   => { nixos = { docker = …; desktop = ./roles/desktop; };
+  #        darwin = { desktop = ./roles/desktop/darwin.nix; }; inline = []; }
+  splitRoles = roles: let
+    isPathLike = v: builtins.isPath v || builtins.isString v;
+    isDir = v: isPathLike v && builtins.readFileType v == "directory";
+    has = file: v: isDir v && builtins.pathExists (v + "/${file}");
+  in {
+    nixos = final.filterAttrs (_: v: !(isDir v) || has "default.nix" v) roles;
+    darwin = final.mapAttrs (_: v: v + "/darwin.nix") (final.filterAttrs (_: has "darwin.nix") roles);
+    inline = builtins.attrNames (final.filterAttrs (_: v: !(isPathLike v)) roles);
+  };
 
   # Map multiple directories to their discovered .nix files
   #

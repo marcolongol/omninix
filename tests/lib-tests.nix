@@ -7,8 +7,70 @@
   lib,
 }: let
   discoveryDir = ./fixtures/discovery;
+  platformRoles = ./fixtures/platforms/roles;
+  roleHalves = omninix.splitRoles (omninix.discoverRoles platformRoles).all;
 in {
   # --- discovery -----------------------------------------------------------
+
+  # Role directories count with a default.nix, a darwin.nix, or both;
+  # internal/ works the same, and a directory with neither is ignored.
+  testDiscoverRolesFindsDarwinHalves = {
+    expr = {
+      all = lib.attrNames (omninix.discoverRoles platformRoles).all;
+      exportable = lib.attrNames (omninix.discoverRoles platformRoles).exportable;
+    };
+    expected = {
+      all = ["both" "darwin-only" "file" "nixos-dir" "priv"];
+      exportable = ["both" "darwin-only" "file" "nixos-dir"];
+    };
+  };
+
+  # Other piece kinds still need default.nix: darwin.nix means nothing there.
+  testDiscoverPiecesIgnoresDarwinOnly = {
+    expr = lib.attrNames (omninix.discoverPieces platformRoles).all;
+    expected = ["both" "file" "nixos-dir"];
+  };
+
+  # NixOS gets files and directories with default.nix, unchanged (the
+  # directory path itself); darwin gets each darwin.nix.
+  testSplitRolesHalves = {
+    expr = {
+      nixos = roleHalves.nixos;
+      darwin = roleHalves.darwin;
+    };
+    expected = {
+      nixos = {
+        both = platformRoles + "/both";
+        file = platformRoles + "/file.nix";
+        nixos-dir = platformRoles + "/nixos-dir";
+      };
+      darwin = {
+        both = platformRoles + "/both/darwin.nix";
+        darwin-only = platformRoles + "/darwin-only/darwin.nix";
+        priv = platformRoles + "/internal/priv/darwin.nix";
+      };
+    };
+  };
+
+  # A role given as a module, not a path, has nothing to look inside: it's
+  # NixOS only, and reported as inline.
+  testSplitRolesInlineIsNixosOnly = {
+    expr = let
+      halves = omninix.splitRoles {
+        inline = {...}: {};
+        both = platformRoles + "/both";
+      };
+    in {
+      nixos = lib.attrNames halves.nixos;
+      darwin = lib.attrNames halves.darwin;
+      inherit (halves) inline;
+    };
+    expected = {
+      nixos = ["both" "inline"];
+      darwin = ["both"];
+      inline = ["inline"];
+    };
+  };
 
   # Only `.nix` files and directories with default.nix are discovered;
   # stray README.md / notes.txt must be ignored.

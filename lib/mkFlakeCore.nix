@@ -45,8 +45,12 @@
   in let
     # Auto-discover all .nix files in provided directories. Hosts and users
     # are plain scans; roles, profiles and module dirs also pick up their
-    # `internal/` subdir (discoverPieces): used here, never exported.
-    pieces = final.mapAttrs (_: final.omninix.discoverPieces) (
+    # `internal/` subdir (discoverPieces): used here, never exported. Role
+    # directories may hold only a darwin half (discoverRoles).
+    pieces = final.mapAttrs (kind:
+      if kind == "roles"
+      then final.omninix.discoverRoles
+      else final.omninix.discoverPieces) (
       final.optionalAttrs (validatedRolesDir != null) {roles = validatedRolesDir;}
       // final.optionalAttrs (validatedProfilesDir != null) {profiles = validatedProfilesDir;}
       // final.optionalAttrs (validatedNixosModulesDir != null) {nixosModules = validatedNixosModulesDir;}
@@ -111,7 +115,17 @@
           imports = [(final.setFunctionArgs (a: mod (a // poisoned)) args)];
         };
 
-      mergedRoles = withExtra "roles" (final.mapAttrs (borrow "roles") extraRoles);
+      # Roles merge whole, by name (local wins, as above), and only then split
+      # into their NixOS and darwin halves, so a host never mixes halves from
+      # two flakes. Each half gets the borrow check on its own.
+      roleCollisions = builtins.attrNames (builtins.intersectAttrs (discovered.roles or {}) extraRoles);
+      ownRoles = final.omninix.splitRoles (discovered.roles or {});
+      extraRoleHalves = final.omninix.splitRoles (builtins.removeAttrs extraRoles roleCollisions);
+      mergedRoles =
+        final.warnIf (roleCollisions != [])
+        "OmniNix: local roles override extra roles for: ${toString roleCollisions}"
+        (ownRoles.nixos // final.mapAttrs (borrow "roles") extraRoleHalves.nixos);
+      mergedDarwinRoles = ownRoles.darwin // final.mapAttrs (borrow "roles") extraRoleHalves.darwin;
       mergedProfiles = withExtra "profiles" (final.mapAttrs (borrow "profiles") extraProfiles);
       mergedNixosModules = withExtra "nixosModules" extraNixosModules;
       mergedHomeManagerModules = withExtra "homeManagerModules" extraHomeManagerModules;
@@ -121,6 +135,9 @@
         // {
           hosts = discovered.hosts or {};
           roles = mergedRoles;
+          darwinRoles = mergedDarwinRoles;
+          # extraRoles given as modules rather than paths: NixOS only.
+          inlineExtraRoles = extraRoleHalves.inline;
           profiles = mergedProfiles;
           nixosModules = mergedNixosModules;
           homeManagerModules = mergedHomeManagerModules;
@@ -135,6 +152,7 @@
         "  Roles (discovered): ${toString (builtins.attrNames (discovered.roles or {}))}"
         "  Roles (extra): ${toString (builtins.attrNames extraRoles)}"
         "  Roles (merged): ${toString (builtins.attrNames mergedRoles)}"
+        "  Roles (darwin halves): ${toString (builtins.attrNames mergedDarwinRoles)}"
         "  Users: ${toString (builtins.attrNames (discovered.users or {}))}"
         "  Profiles (discovered): ${toString (builtins.attrNames (discovered.profiles or {}))}"
         "  Profiles (extra): ${toString (builtins.attrNames extraProfiles)}"
