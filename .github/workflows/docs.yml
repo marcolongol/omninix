@@ -35,9 +35,14 @@ jobs:
       - name: Build the site
         run: nix build .#docs -L && cp -rL result site
 
+      # Named per attempt: artifacts outlive a failed attempt, and a re-run
+      # would otherwise leave two "github-pages" artifacts for deploy-pages.
       - uses: actions/upload-pages-artifact@v3
         with:
           path: site
+          name: github-pages-${{ github.run_attempt }}
 
       - id: deployment
         uses: actions/deploy-pages@v4
+        with:
+          artifact_name: github-pages-${{ github.run_attempt }}
