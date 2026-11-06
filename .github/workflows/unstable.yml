@@ -1,6 +1,7 @@
 name: Unstable
 
-# The eval suite against nixos-unstable and Home Manager master, so breakage
+# The eval suite against nixos-unstable, Home Manager master and nix-darwin
+# master (nix-darwin refuses a nixpkgs from another release), so breakage
 # in the next NixOS release shows up here before users report it. Scheduled
 # rather than per-PR: unstable moves on its own, and shouldn't block merges.
 on:
@@ -27,6 +28,7 @@ jobs:
       OVERRIDES: >-
         --override-input nixpkgs github:nixos/nixpkgs/nixos-unstable
         --override-input home-manager github:nix-community/home-manager
+        --override-input nix-darwin github:nix-darwin/nix-darwin/master
     steps:
       - uses: actions/checkout@v6
 

@@ -21,6 +21,9 @@
 
   # Also decides how flake.homeModules is typed (see config below).
   hmFlakeModule = inputs ? home-manager && inputs.home-manager ? flakeModules;
+  # Declares a typed flake.darwinConfigurations, so hand-written darwin hosts
+  # merge with OmniNix's; imported by path, so it dedups with your own import.
+  darwinFlakeModule = inputs ? nix-darwin && inputs.nix-darwin ? flakeModules;
 
   core = omninixLib.omninix.mkFlakeCore inputs {
     inherit
@@ -35,6 +38,8 @@
       extraNixosModules
       homeManagerModulesDir
       extraHomeManagerModules
+      darwinModulesDir
+      extraDarwinModules
       overlaysDir
       packagesDir
       secretsPath
@@ -49,7 +54,9 @@
   };
 in {
   # Typed, mergeable flake.homeConfigurations; dedups with a consumer's own import.
-  imports = lib.optional hmFlakeModule inputs.home-manager.flakeModules.home-manager;
+  imports =
+    lib.optional hmFlakeModule inputs.home-manager.flakeModules.home-manager
+    ++ lib.optional darwinFlakeModule inputs.nix-darwin.flakeModules.default;
 
   options.omninix = {
     hostsDir = dirOption "Directory of hosts; each .nix file or dir/default.nix becomes nixosConfigurations.<name>.";
@@ -77,6 +84,12 @@ in {
       type = moduleSet;
       default = {};
       description = "Extra Home Manager modules by name (e.g. another flake's homeModules), imported for every user. Local homeManagerModulesDir wins on collision.";
+    };
+    darwinModulesDir = dirOption "Directory of nix-darwin modules imported into every darwin host, exported as darwinModules.";
+    extraDarwinModules = mkOption {
+      type = moduleSet;
+      default = {};
+      description = "Extra nix-darwin modules by name (e.g. another flake's darwinModules), imported into every darwin host. Local darwinModulesDir wins on collision.";
     };
     overlaysDir = dirOption "Overlays: one per .nix file, or a file/default.nix returning a list.";
     packagesDir = dirOption "Packages (callPackage form): pkgs.<name> everywhere and perSystem.packages.<name>.";
@@ -130,10 +143,13 @@ in {
 
   config = {
     flake = {
-      inherit (core.outputs) hosts roles profiles users nixosConfigurations homeConfigurations;
+      inherit (core.outputs) hosts roles profiles users nixosConfigurations homeConfigurations darwinConfigurations;
       # mkDefault so a consumer's own same-named export replaces ours instead of
       # merging with it (deferredModule merges definitions).
       nixosModules = lib.mapAttrs (_: lib.mkDefault) core.outputs.nixosModules;
+      # No typed option declares it, so like an untyped homeModules: the whole
+      # value is the default.
+      darwinModules = lib.mkDefault core.outputs.darwinModules;
       # Typed per entry only with HM's flakeModule; otherwise flake.homeModules is
       # a freeform raw value, which would keep per-entry mkDefault literally.
       homeModules =

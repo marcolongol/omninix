@@ -1,16 +1,13 @@
 # OmniNix NixOS module for the builders: the secure core (core.nix, also
 # exported as nixosModules.default) plus the wiring that needs the builders'
-# arguments: sops-backed passwords and Home Manager users.
+# arguments: sops-backed passwords and Home Manager users (../home-manager.nix,
+# shared with darwin hosts).
 {
   config,
   inputs,
   lib,
   hostName,
-  users,
-  profiles,
-  homeManagerModules,
   secretsPath,
-  mkHomeModules,
   ...
 }: let
   inherit (config.omninix) activeUsers;
@@ -52,10 +49,13 @@
     });
   };
 in {
-  imports = [./core.nix];
+  imports = [./core.nix ../home-manager.nix];
 
   config = lib.mkMerge [
-    {omninix.internal.secretsPath = secretsPath;}
+    {
+      omninix.internal.secretsPath = secretsPath;
+      omninix.internal.extraHomeModules = lib.optional (inputs ? impermanence) impermanenceHomeModule;
+    }
 
     (lib.mkIf (activeUsers != []) {
       # sops-backed passwords for users with a secret file (see core.nix for
@@ -63,34 +63,6 @@ in {
       users.users = lib.genAttrs usersWithSecret (userName: {
         hashedPasswordFile = config.sops.secrets."user-password-${userName}".path;
       });
-
-      home-manager = {
-        extraSpecialArgs = {
-          inherit inputs secretsPath;
-        };
-        useGlobalPkgs = true;
-        useUserPackages = true;
-        backupFileExtension = lib.mkDefault "bak";
-        # Per-user imports come from the shared mkHomeModules helper (see
-        # lib/mkHomeModules.nix) so they stay identical to the standalone
-        # homeConfigurations path. stateVersion is always defaulted (mkDefault)
-        # so a user file may override it but is never required to set it.
-        users = lib.genAttrs activeUsers (
-          userName: let
-            imports =
-              mkHomeModules {
-                inherit inputs lib profiles homeManagerModules userName secretsPath;
-                userFile = users.${userName} or null;
-              }
-              ++ lib.optional (inputs ? impermanence) impermanenceHomeModule;
-          in {
-            inherit imports;
-            # Frozen: never bump with the nixpkgs pin. Users who don't set it
-            # would silently move to a newer stateVersion.
-            home.stateVersion = lib.mkDefault "26.05";
-          }
-        );
-      };
     })
 
     # sops plumbing — referenced ONLY when secretsPath is set. Uses optionalAttrs

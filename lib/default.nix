@@ -14,6 +14,7 @@
 #   utils.nix                  - generic helpers (mapAttrsMaybe, mkDebugTrace, pick, drop)
 #   discovery.nix              - directory scanning (forAllNixFiles, mkDirMap, loadOverlays)
 #   mkNixosConfigurations.nix  - mkNixosConfigurations
+#   mkDarwinConfigurations.nix - mkDarwinConfigurations (nix-darwin hosts)
 #   mkHomeModules.nix          - mkHomeModules (shared per-user HM module set)
 #   mkHomeConfigurations.nix   - mkHomeConfigurations (standalone HM)
 #   mkFlakeCore.nix            - mkFlakeCore, the engine behind flakeModules.default (internal)
@@ -28,6 +29,7 @@
         // (import ./utils.nix {inherit final;})
         // (import ./discovery.nix {inherit final;})
         // (import ./mkNixosConfigurations.nix {inherit final;})
+        // (import ./mkDarwinConfigurations.nix {inherit final;})
         // (import ./mkHomeModules.nix)
         // (import ./mkHomeConfigurations.nix {inherit final;})
         // (import ./mkFlakeCore.nix {inherit final;});

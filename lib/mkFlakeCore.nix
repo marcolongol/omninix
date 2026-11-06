@@ -16,6 +16,8 @@
     extraNixosModules,
     homeManagerModulesDir,
     extraHomeManagerModules,
+    darwinModulesDir,
+    extraDarwinModules,
     overlaysDir,
     packagesDir,
     secretsPath,
@@ -38,6 +40,7 @@
     validatedUsersDir = validateOptionalPath "usersDir" usersDir;
     validatedProfilesDir = validateOptionalPath "profilesDir" profilesDir;
     validatedNixosModulesDir = validateOptionalPath "nixosModulesDir" nixosModulesDir;
+    validatedDarwinModulesDir = validateOptionalPath "darwinModulesDir" darwinModulesDir;
     validatedHomeManagerModulesDir = validateOptionalPath "homeManagerModulesDir" homeManagerModulesDir;
     validatedOverlaysDir = validateOptionalPath "overlaysDir" overlaysDir;
     validatedPackagesDir = validateOptionalPath "packagesDir" packagesDir;
@@ -54,6 +57,7 @@
       final.optionalAttrs (validatedRolesDir != null) {roles = validatedRolesDir;}
       // final.optionalAttrs (validatedProfilesDir != null) {profiles = validatedProfilesDir;}
       // final.optionalAttrs (validatedNixosModulesDir != null) {nixosModules = validatedNixosModulesDir;}
+      // final.optionalAttrs (validatedDarwinModulesDir != null) {darwinModules = validatedDarwinModulesDir;}
       // final.optionalAttrs (validatedHomeManagerModulesDir != null) {homeManagerModules = validatedHomeManagerModulesDir;}
     );
 
@@ -128,6 +132,7 @@
       mergedDarwinRoles = ownRoles.darwin // final.mapAttrs (borrow "roles") extraRoleHalves.darwin;
       mergedProfiles = withExtra "profiles" (final.mapAttrs (borrow "profiles") extraProfiles);
       mergedNixosModules = withExtra "nixosModules" extraNixosModules;
+      mergedDarwinModules = withExtra "darwinModules" extraDarwinModules;
       mergedHomeManagerModules = withExtra "homeManagerModules" extraHomeManagerModules;
 
       result =
@@ -140,6 +145,7 @@
           inlineExtraRoles = extraRoleHalves.inline;
           profiles = mergedProfiles;
           nixosModules = mergedNixosModules;
+          darwinModules = mergedDarwinModules;
           homeManagerModules = mergedHomeManagerModules;
         };
     in
@@ -158,6 +164,7 @@
         "  Profiles (extra): ${toString (builtins.attrNames extraProfiles)}"
         "  Profiles (merged): ${toString (builtins.attrNames mergedProfiles)}"
         "  NixOS Modules (merged): ${toString (builtins.attrNames mergedNixosModules)}"
+        "  Darwin Modules (merged): ${toString (builtins.attrNames mergedDarwinModules)}"
         "  Home Manager Modules (merged): ${toString (builtins.attrNames mergedHomeManagerModules)}"
         "  Exported: ${toString (final.mapAttrsToList (k: v: "${k}=[${toString (builtins.attrNames v)}]") exportable)}"
       ];
@@ -211,6 +218,15 @@
         config.allowUnfree = allowUnfree;
       };
 
+    # Hosts whose system is darwin are built with nix-darwin, the rest with
+    # NixOS. Each builder only sees its own hosts' hostSystems/hostInputs
+    # entries; typos are caught against all hosts below, before the split.
+    isDarwinHost = name: final.hasSuffix "-darwin" (hostSystems.${name} or defaultSystem);
+    allHosts = dirs.hosts or {};
+    darwinHosts = final.filterAttrs (name: _: isDarwinHost name) allHosts;
+    nixosHosts = final.filterAttrs (name: _: !(isDarwinHost name)) allHosts;
+    forHosts = hosts: final.filterAttrs (name: _: hosts ? ${name});
+
     # Args shared by both builders, so the discovered directories and
     # global settings are spelled out once. Each builder adds its own
     # specifics on top (hosts/roles/nixosModules for NixOS). `inputs` is the
@@ -227,6 +243,8 @@
     # front of the result so they actually fire — a bare `_ = assert ...` let
     # binding would never be forced under laziness.
     assert final.omninix.assertIsString "defaultSystem" defaultSystem;
+    assert final.omninix.assertKnownNames "hostSystems" allHosts hostSystems;
+    assert final.omninix.assertKnownNames "hostInputs" allHosts hostInputs;
     # An empty hostsDir is almost certainly a mistake; leaving it unset is not.
     assert (validatedHostsDir == null || dirs.hosts != {})
     || throw ''
@@ -246,17 +264,35 @@
         roles = exportable.roles or {};
         profiles = exportable.profiles or {};
         nixosModules = exportable.nixosModules or {};
+        darwinModules = exportable.darwinModules or {};
         homeModules = exportable.homeManagerModules or {};
         # Build all NixOS configurations from discovered files
         nixosConfigurations = debugTrace "Building NixOS configurations..." (
           final.omninix.mkNixosConfigurations (sharedArgs
             // {
-              inherit (dirs) hosts;
-              inherit hostSystems hostInputs;
+              hosts = nixosHosts;
+              hostSystems = forHosts nixosHosts hostSystems;
+              hostInputs = forHosts nixosHosts hostInputs;
               roles = dirs.roles or {};
               nixosModules = dirs.nixosModules or {};
             })
         );
+        # The darwin hosts, with the darwin halves of roles.
+        darwinConfigurations =
+          final.warnIf (darwinHosts != {} && dirs.inlineExtraRoles != []) ''
+            OmniNix: extraRoles ${toString dirs.inlineExtraRoles} are modules, not paths, so they have
+            no darwin half and darwin hosts don't get them. To share a darwin half, pass the
+            role's directory instead (e.g. inherit (their.roles) <name>).''
+          (debugTrace "Building darwin configurations..." (
+            final.omninix.mkDarwinConfigurations (sharedArgs
+              // {
+                hosts = darwinHosts;
+                hostSystems = forHosts darwinHosts hostSystems;
+                hostInputs = forHosts darwinHosts hostInputs;
+                roles = dirs.darwinRoles or {};
+                darwinModules = dirs.darwinModules or {};
+              })
+          ));
         # Standalone Home Manager configurations from the same users/profiles.
         homeConfigurations = debugTrace "Building home configurations..." (
           final.omninix.mkHomeConfigurations (sharedArgs // {inherit userSystems userInputs;})

@@ -28,9 +28,11 @@ in {
     inherit (dirs) profiles roles;
 
     # The secure core and the omninix.* options, without the builders: for a
-    # hand-rolled nixosSystem, or to use OmniNix roles and profiles in one.
+    # hand-rolled nixosSystem/darwinSystem, or to use OmniNix roles and
+    # profiles in one.
     # Paths, so they dedup with the builders' own import of the same files.
     nixosModules.default = ../../modules/nixos/core.nix;
+    darwinModules.default = ../../modules/darwin/core.nix;
     homeModules.default = ../../modules/home;
 
     # Templates. `default` scaffolds a whole config; the rest scaffold a single

@@ -22,6 +22,7 @@
   evalTests =
     (import ./lib-tests.nix {inherit omninix lib;})
     // (import ./home-tests.nix {inherit inputs omninix system;})
+    // (import ./darwin-tests.nix {inherit inputs lib system;})
     // (lib.optionalAttrs isLinux (import ./config-tests.nix {inherit inputs omninix lib system;}))
     // (lib.optionalAttrs isLinux (import ./flake-tests.nix {inherit inputs lib system;}));
 
