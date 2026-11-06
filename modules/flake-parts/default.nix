@@ -41,6 +41,8 @@
       defaultSystem
       hostSystems
       userSystems
+      hostInputs
+      userInputs
       allowUnfree
       debug
       ;
@@ -95,6 +97,24 @@ in {
       default = {};
       example = {alice = "aarch64-darwin";};
       description = "Per-user system override for standalone homeConfigurations.";
+    };
+    hostInputs = mkOption {
+      type = types.attrsOf (types.lazyAttrsOf types.raw);
+      default = {};
+      example = lib.literalExpression ''
+        {
+          rpi = {
+            nixpkgs = inputs.nixpkgs-unstable;
+            home-manager = inputs.home-manager-unstable;
+          };
+        }
+      '';
+      description = "Per-host input overrides, merged over the flake's inputs for that host only (its nixosSystem, home-manager/sops-nix modules and `inputs` argument).";
+    };
+    userInputs = mkOption {
+      type = types.attrsOf (types.lazyAttrsOf types.raw);
+      default = {};
+      description = "Per-user input overrides for standalone homeConfigurations, like hostInputs.";
     };
     allowUnfree = mkOption {
       type = types.bool;

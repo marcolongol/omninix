@@ -33,6 +33,9 @@
     # are modules (functions), so the system can't be read from them; it comes
     # from this explicit map. Users not listed use defaultSystem.
     userSystems ? {},
+    # Per-user input overrides, e.g. { alice = { nixpkgs = …; home-manager = …; }; },
+    # merged over `inputs` for that user's standalone home only.
+    userInputs ? {},
     profiles ? {},
     homeManagerModules ? {},
     overlays ? [],
@@ -45,16 +48,18 @@
   }: let
     debugTrace = final.omninix.mkDebugTrace debug;
 
+    pkgsFor = nixpkgs: system:
+      import nixpkgs {
+        inherit system overlays;
+        config.allowUnfree = allowUnfree;
+      };
+
     # pkgs is instantiated once per distinct system in use (defaultSystem plus
-    # any userSystems values), and shared by all users on that system.
-    pkgsBySystem = final.genAttrs (final.unique ([defaultSystem] ++ final.attrValues userSystems)) (
-      system:
-        import inputs.nixpkgs {
-          inherit system overlays;
-          config.allowUnfree = allowUnfree;
-        }
-    );
+    # any userSystems values), and shared by all users on that system who
+    # don't override nixpkgs in userInputs.
+    pkgsBySystem = final.genAttrs (final.unique ([defaultSystem] ++ final.attrValues userSystems)) (pkgsFor inputs.nixpkgs);
   in
+    assert final.omninix.assertKnownNames "userInputs" users userInputs;
     # Home Manager is optional: without the input there is nothing to
     # build, so we degrade gracefully to an empty attrset (mirrors the
     # optional-input detection in mkNixosConfigurations).
@@ -65,7 +70,12 @@
         final.mapAttrs (
           userName: userPath: let
             system = debugTrace "Processing user: ${userName}" (userSystems.${userName} or defaultSystem);
-            pkgs = pkgsBySystem.${system};
+            # This user's inputs: the flake's, with its userInputs entry on top.
+            inputs' = inputs // (userInputs.${userName} or {});
+            pkgs =
+              if (userInputs.${userName} or {}) ? nixpkgs
+              then pkgsFor inputs'.nixpkgs system
+              else pkgsBySystem.${system};
 
             # Identity module: standalone Home Manager has no NixOS user to
             # supply these, so infer them from the directory name. mkDefault
@@ -87,7 +97,7 @@
               home.stateVersion = lib.mkDefault "26.05";
             };
           in
-            inputs.home-manager.lib.homeManagerConfiguration {
+            inputs'.home-manager.lib.homeManagerConfiguration {
               inherit pkgs;
 
               # Matches the modules/nixos extraSpecialArgs (inputs,
@@ -95,7 +105,8 @@
               # the NixOS submodule and standalone paths.
               extraSpecialArgs =
                 {
-                  inherit inputs secretsPath;
+                  inherit secretsPath;
+                  inputs = inputs';
                 }
                 // specialArgs;
 
@@ -105,7 +116,8 @@
               modules =
                 [identityModule]
                 ++ final.omninix.mkHomeModules {
-                  inherit inputs userName secretsPath;
+                  inherit userName secretsPath;
+                  inputs = inputs';
                   lib = final;
                   userFile = userPath;
                   inherit profiles homeManagerModules extraModules omninixHomeModule;

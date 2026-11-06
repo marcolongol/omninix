@@ -83,6 +83,44 @@ omninix.allowUnfree = true;
 This applies to hosts, home configs, packages and the flake-parts `perSystem`
 pkgs alike.
 
+For a single host instead, set `nixpkgs.config.allowUnfree = true;` in its
+file.
+
+## A different nixpkgs per host
+
+Every host builds from your flake's `nixpkgs` by default. To put one on
+another channel, say unstable on a desktop while servers stay on stable, add
+the inputs and point the host at them:
+
+```nix
+inputs = {
+  nixpkgs-unstable.url = "github:nixos/nixpkgs?ref=nixos-unstable";
+  home-manager-unstable = {
+    url = "github:nix-community/home-manager";
+    inputs.nixpkgs.follows = "nixpkgs-unstable";
+  };
+};
+
+omninix.hostInputs.desktop = {
+  nixpkgs = inputs.nixpkgs-unstable;
+  home-manager = inputs.home-manager-unstable;
+};
+```
+
+The entry replaces those inputs for that host only: it's built with that
+nixpkgs, gets that Home Manager module, and its modules see the swapped values
+in `inputs`. Override `home-manager` together with `nixpkgs`, or every user on
+the host gets a version-mismatch warning. Any other input can be swapped the
+same way, e.g. a patched `sops-nix`.
+
+`omninix.userInputs.<user>` does the same for a standalone home, for example a
+Mac on unstable.
+
+Your overlays and `packagesDir` packages apply on top of the host's nixpkgs.
+The flake's `packages` outputs and `perSystem` pkgs stay on the flake's own
+`nixpkgs`. A name in `hostInputs` or `userInputs` that isn't a host or user is
+an error.
+
 ## `perSystem` pkgs (flake-parts)
 
 With the flake-parts module, `perSystem`'s `pkgs` is the same package set the

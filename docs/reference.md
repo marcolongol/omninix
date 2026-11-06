@@ -33,6 +33,8 @@ fails with its file location.
 | `defaultSystem` | string | `"x86_64-linux"` | system for hosts and users not listed below |
 | `hostSystems` | attrs of strings | `{}` | per-host system, e.g. `{rpi = "aarch64-linux";}` |
 | `userSystems` | attrs of strings | `{}` | per-user system for standalone home configs |
+| `hostInputs` | attrs of input sets | `{}` | per-host input overrides, e.g. `{desktop = {nixpkgs = …; home-manager = …;};}` ([details](packages-and-overlays.md#a-different-nixpkgs-per-host)) |
+| `userInputs` | attrs of input sets | `{}` | the same, for standalone home configs |
 | `allowUnfree` | bool | `false` | allow unfree packages everywhere |
 | `debug` | bool | `false` | trace discovery and builds |
 
@@ -158,9 +160,9 @@ let o = omninix.lib.omninix; in {
 
 `mkNixosConfigurations` takes `inputs`, `hosts`, `roles`, `users`, `profiles`,
 `nixosModules`, `homeManagerModules`, `overlays`, `extraModules`,
-`specialArgs`, `secretsPath`, `defaultSystem`, `hostSystems`, `allowUnfree` and
-`debug`. `mkHomeConfigurations` takes the user-side equivalents, plus
-`userSystems`.
+`specialArgs`, `secretsPath`, `defaultSystem`, `hostSystems`, `hostInputs`,
+`allowUnfree` and `debug`. `mkHomeConfigurations` takes the user-side
+equivalents, plus `userSystems` and `userInputs`.
 
 ## Just the modules
 

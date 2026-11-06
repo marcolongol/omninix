@@ -212,7 +212,7 @@ guarantees to any `nixosSystem` ([details](docs/reference.md#just-the-modules)).
 - [Impermanence and root wipe](docs/impermanence.md): keep state in `/persist`,
   wipe the rest on every boot, and roll it out safely.
 - [Packages and overlays](docs/packages-and-overlays.md): your own packages as
-  `pkgs.<name>`, and overriding nixpkgs.
+  `pkgs.<name>`, overriding nixpkgs, and a different nixpkgs per host.
 - [Third-party modules](docs/third-party-modules.md): disko, stylix,
   nixos-hardware and friends, per host or fleet-wide.
 - [Deploying](docs/deployment.md): `nixos-rebuild --target-host` and deploy-rs.

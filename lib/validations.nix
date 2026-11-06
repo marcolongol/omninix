@@ -80,6 +80,23 @@
     then throw "OmniNix: ${name} cannot be an empty attribute set"
     else true;
 
+  # Validate that every key of a per-name setting names something that exists
+  #
+  # Type: String -> AttrSet -> AttrSet -> Bool
+  #
+  # Example:
+  #   assertKnownNames "hostInputs" hosts hostInputs
+  assertKnownNames = name: known: attrs: let
+    unknown = builtins.filter (n: !(known ? ${n})) (builtins.attrNames attrs);
+  in
+    if unknown != []
+    then
+      throw ''
+        OmniNix: ${name}: no such entry: ${toString unknown}
+        Known: ${toString (builtins.attrNames known)}
+      ''
+    else true;
+
   # Validate that a required directory exists, returning the path
   #
   # Type: String -> Path -> Path

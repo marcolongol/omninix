@@ -339,6 +339,33 @@ in {
     expected = false;
   };
 
+  # hostInputs/userInputs reach the builders through both entry points.
+  testHostAndUserInputsPassThrough = let
+    overrides = {
+      hostInputs.test.marker = "host";
+      userInputs.alice.marker = "user";
+    };
+    seen = c: {
+      host = c.nixosConfigurations.test._module.specialArgs.inputs.marker;
+      user = c.homeConfigurations.alice._module.specialArgs.inputs.marker;
+    };
+  in {
+    expr = {
+      module = seen (evalFlake {omninix = overrides;});
+      mkFlake = seen (omninix.mkFlake consumerInputs (settings // {defaultSystem = system;} // overrides));
+    };
+    expected = {
+      module = {
+        host = "host";
+        user = "user";
+      };
+      mkFlake = {
+        host = "host";
+        user = "user";
+      };
+    };
+  };
+
   # omninix.requirements: a missing module becomes one readable assertion.
   testRequirementMissing = {
     expr = failedAssertions (withExtras {extraRoles.requiring = sharing + "/requiring-role.nix";} [{roles.requiring.enable = true;}]);

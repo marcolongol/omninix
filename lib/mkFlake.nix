@@ -32,6 +32,8 @@
   #   defaultSystem           - Default system architecture ("x86_64-linux")
   #   hostSystems             - Per-host system override ({})
   #   userSystems             - Per-user system override for homeConfigurations ({})
+  #   hostInputs              - Per-host input overrides, e.g. a host on unstable ({})
+  #   userInputs              - Per-user input overrides for homeConfigurations ({})
   #   systems                 - Systems to emit packages for ([defaultSystem])
   #   allowUnfree             - Allow unfree packages (false)
   #   debug                   - Enable verbose debug output (false)
@@ -87,6 +89,10 @@
     # Per-user system override for standalone homeConfigurations,
     # e.g. { alice = "aarch64-darwin"; }. Users not listed use defaultSystem.
     userSystems ? {},
+    # Per-host / per-user input overrides, e.g.
+    # { rpi = { nixpkgs = inputs.nixpkgs-unstable; home-manager = …; }; }.
+    hostInputs ? {},
+    userInputs ? {},
     # Allow unfree packages. Defaults to false (free software by default);
     # set true to opt the whole flake (NixOS + HM + packages) into unfree.
     allowUnfree ? false,
@@ -110,6 +116,8 @@
         defaultSystem
         hostSystems
         userSystems
+        hostInputs
+        userInputs
         allowUnfree
         debug
         ;
@@ -142,6 +150,8 @@
     defaultSystem,
     hostSystems,
     userSystems,
+    hostInputs,
+    userInputs,
     allowUnfree,
     debug,
   }: let
@@ -352,14 +362,14 @@
           final.omninix.mkNixosConfigurations (sharedArgs
             // {
               inherit (dirs) hosts;
-              inherit hostSystems;
+              inherit hostSystems hostInputs;
               roles = dirs.roles or {};
               nixosModules = dirs.nixosModules or {};
             })
         );
         # Standalone Home Manager configurations from the same users/profiles.
         homeConfigurations = debugTrace "Building home configurations..." (
-          final.omninix.mkHomeConfigurations (sharedArgs // {inherit userSystems;})
+          final.omninix.mkHomeConfigurations (sharedArgs // {inherit userSystems userInputs;})
         );
       };
       # packagesDir packages read from a pkgsFor result, minus those whose

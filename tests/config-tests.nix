@@ -38,6 +38,47 @@
 
   evalHost = args: (evalSystem args).config;
 
+  # hostInputs: wrapped copies of nixpkgs and home-manager whose builds carry a
+  # marker option, so a host shows which inputs it was built from.
+  marker = name: {lib, ...}: {options.fixtureInputs.${name} = lib.mkOption {default = true;};};
+  markedNixpkgs =
+    inputs.nixpkgs
+    // {
+      lib =
+        inputs.nixpkgs.lib
+        // {
+          nixosSystem = args: inputs.nixpkgs.lib.nixosSystem (args // {modules = args.modules ++ [(marker "nixpkgs")];});
+        };
+    };
+  markedHomeManager =
+    inputs.home-manager
+    // {
+      nixosModules.home-manager = {
+        imports = [inputs.home-manager.nixosModules.home-manager (marker "homeManager")];
+      };
+    };
+  # Hosts `a` (overridden) and `b` (not); each reports its markers and the
+  # `inputs` its modules received.
+  hostInputsFleet = hostInputs:
+    omninix.mkNixosConfigurations {
+      inherit inputs hostInputs;
+      defaultSystem = system;
+      hosts = lib.genAttrs ["a" "b"] (_: {
+        inputs,
+        options,
+        ...
+      }: {
+        imports = [bootstrapUser];
+        boot.isContainer = true;
+        system.stateVersion = "26.05";
+        environment.etc.probe.text = builtins.toJSON {
+          markers = builtins.attrNames (options.fixtureInputs or {});
+          extra = inputs ? extra;
+        };
+      });
+    };
+  probeHost = c: builtins.fromJSON c.config.environment.etc.probe.text;
+
   scriptedInitrd = (evalSystem {module = bootstrapUser;}).options.boot.initrd.systemd.enable.visible or true;
 
   # A hand-rolled nixosSystem with only nixosModules.default: no builder.
@@ -485,6 +526,41 @@ in {
       .omninix
       .activeUsers;
     expected = ["alice"];
+  };
+
+  # --- hostInputs -----------------------------------------------------
+
+  # One host's overrides build it (nixosSystem, home-manager module, `inputs`
+  # argument) and leave the others on the flake's inputs.
+  testHostInputsOverrideOneHost = {
+    expr = let
+      fleet = hostInputsFleet {
+        a = {
+          nixpkgs = markedNixpkgs;
+          home-manager = markedHomeManager;
+          extra = {};
+        };
+      };
+    in {
+      a = probeHost fleet.a;
+      b = probeHost fleet.b;
+    };
+    expected = {
+      a = {
+        markers = ["homeManager" "nixpkgs"];
+        extra = true;
+      };
+      b = {
+        markers = [];
+        extra = false;
+      };
+    };
+  };
+
+  # A typo in a host name fails instead of silently doing nothing.
+  testHostInputsUnknownHostThrows = {
+    expr = (builtins.tryEval (builtins.attrNames (hostInputsFleet {c.extra = {};}))).success;
+    expected = false;
   };
 
   # --- per-host system ------------------------------------------------
