@@ -225,6 +225,34 @@ in {
     expected = ["alice"];
   };
 
+  # The #darwin-host template is a working Mac host, here with the default
+  # template's user (and so its `common` profile) enabled.
+  testDarwinHostTemplate = {
+    expr = let
+      template = ../templates/default;
+      c =
+        ((inputs.self.lib.omninix.mkDarwinConfigurations {
+            inherit inputs;
+            hosts.mac = ../templates/darwin-host;
+            hostSystems.mac = "aarch64-darwin";
+            users.example-user = template + "/users/example-user";
+            profiles.common = template + "/profiles/common.nix";
+          })
+          .mac
+          .extendModules {modules = [{omninix.hostUsers.example-user.enable = true;}];})
+        .config;
+    in {
+      drv = lib.hasSuffix ".drv" c.system.build.toplevel.drvPath;
+      primary = c.system.primaryUser;
+      common = c.home-manager.users.example-user.profiles.common.enable;
+    };
+    expected = {
+      drv = true;
+      primary = "example-user";
+      common = true;
+    };
+  };
+
   # darwinModules.default works in a hand-rolled darwinSystem.
   testDarwinCoreStandalone = {
     expr = let

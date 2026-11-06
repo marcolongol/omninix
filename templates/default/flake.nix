@@ -30,6 +30,9 @@
     # For example, for ephemeral-root setups:
     # impermanence.url = "github:nix-community/impermanence";
     # disko = { url = "github:nix-community/disko"; inputs.nixpkgs.follows = "nixpkgs"; };
+
+    # For Mac hosts (nix flake new -t github:marcolongol/omninix#darwin-host hosts/<name>):
+    # nix-darwin = { url = "github:nix-darwin/nix-darwin/nix-darwin-26.05"; inputs.nixpkgs.follows = "nixpkgs"; };
   };
 
   outputs = {
@@ -47,6 +50,8 @@
 
       omninix = {
         hostsDir = ./hosts;
+        # A host with a darwin system is a Mac, built with nix-darwin:
+        # hostSystems.macbook = "aarch64-darwin";
         rolesDir = ./roles;
         extraRoles = omninix.roles;
         usersDir = ./users;

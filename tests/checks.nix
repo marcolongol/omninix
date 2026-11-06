@@ -4,7 +4,8 @@
 # flake entry points, Layer 2c standalone homes) as a single `eval` derivation
 # that fails — printing the offending cases — if any lib.runTests case's result
 # differs from its expected value. `home` builds a standalone home on every
-# system; the VM tests (Layer 4) are added on Linux.
+# system, `darwin` a nix-darwin system on darwin; the VM tests (Layer 4) are
+# added on Linux.
 #
 # Run everything with: nix flake check
 {
@@ -15,6 +16,7 @@
 }: let
   omninix = lib.omninix;
   isLinux = pkgs.stdenv.hostPlatform.isLinux;
+  isDarwin = pkgs.stdenv.hostPlatform.isDarwin;
 
   # Layer 1 (pure lib) runs everywhere. Layer 2 evaluates NixOS configs, which
   # only exist on Linux, so it is gated — otherwise `nix flake check` would try
@@ -67,6 +69,23 @@ in
       })
       .alice
       .activationPackage;
+  }
+  // lib.optionalAttrs isDarwin {
+    # A real nix-darwin system build (with a Home Manager user), which Linux
+    # can only evaluate.
+    darwin =
+      (omninix.mkDarwinConfigurations {
+        inherit inputs;
+        hosts.mac = ./fixtures/darwin/hosts/mac.nix;
+        hostSystems.mac = system;
+        users.alice = ./fixtures/flake/users/alice.nix;
+        roles = (omninix.splitRoles (omninix.discoverRoles ./fixtures/platforms/roles).all).darwin;
+      })
+      .mac
+      .config
+      .system
+      .build
+      .toplevel;
   }
   // lib.optionalAttrs isLinux {
     vm = import ./vm-test.nix {inherit pkgs inputs lib;};

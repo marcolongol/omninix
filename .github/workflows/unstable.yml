@@ -43,3 +43,7 @@ jobs:
 
       - name: Standalone home build
         run: nix build .#checks.${{ matrix.system }}.home -L $OVERRIDES
+
+      - name: nix-darwin system build
+        if: runner.os == 'macOS'
+        run: nix build .#checks.${{ matrix.system }}.darwin -L $OVERRIDES

@@ -13,7 +13,7 @@ under `internal/`.
 | Output | From |
 |---|---|
 | `roles`, `profiles` | your `rolesDir` / `profilesDir` |
-| `nixosModules`, `homeModules` | your `nixosModulesDir` / `homeManagerModulesDir` |
+| `nixosModules`, `darwinModules`, `homeModules` | your `nixosModulesDir` / `darwinModulesDir` / `homeManagerModulesDir` |
 | `overlays.packages` | your `packagesDir` ([details](packages-and-overlays.md#sharing-them)) |
 
 Two things are never exported:
@@ -21,7 +21,7 @@ Two things are never exported:
 - **`extra*` entries.** Another flake's pieces stay theirs; re-exporting them
   would pin them at your version.
 - **Anything under `internal/`.** A subdirectory named `internal` in any of
-  those four directories is imported into your hosts and users, under the
+  those directories is imported into your hosts and users, under the
   file's own name, but never exported. Use it for files that read your flake
   `inputs`, hold personal values, or glue your machines together. A name that
   exists both in a directory and in its `internal/` is an error.
@@ -58,6 +58,21 @@ omninix = {
 Then enable them like your own (`roles.desktop.enable = true;`) and bring what
 they ask for. Pick by name rather than taking a whole set, so pieces added to
 theirs later don't appear on your machines unasked.
+
+### Roles with a Mac half
+
+A role shared as a directory brings both halves: OmniNix looks inside for
+`default.nix` (NixOS hosts) and `darwin.nix` (Mac hosts). The `roles` output
+is already paths, so `inherit (their-config.roles) desktop` covers both.
+
+A role given as a module rather than a path (`import …`, or written inline) has
+nothing to look inside, so it's NixOS only. With Mac hosts in the flake,
+OmniNix warns about it:
+
+```nix
+extraRoles.desktop = their-config.roles.desktop;          # both halves
+extraRoles.desktop = import their-config.roles.desktop;   # NixOS half only (warns)
+```
 
 The `extra*` options also work for third-party flakes' modules (disko, stylix,
 …): they're the simplest way to import a module into every host or user, once.

@@ -2,6 +2,7 @@
 
 - [Flake-parts module options](#flake-parts-module-options)
 - [Host options](#host-options-nixos)
+- [Mac host options](#mac-host-options-nix-darwin)
 - [User options](#user-options-home-manager)
 - [Shipped roles and profiles](#shipped-roles-and-profiles)
 - [Just the modules](#just-the-modules)
@@ -16,21 +17,23 @@ fails with its file location.
 
 | Option | Type | Default | Meaning |
 |---|---|---|---|
-| `hostsDir` | path or null | `null` | one host per `.nix` file or `<name>/default.nix` → `nixosConfigurations.<name>` |
-| `rolesDir` | path or null | `null` | roles, imported into every host |
-| `extraRoles` | attrs of modules | `{}` | more roles by name, e.g. `omninix.roles`; `rolesDir` wins on a name clash |
+| `hostsDir` | path or null | `null` | one host per `.nix` file or `<name>/default.nix` → `nixosConfigurations.<name>`, or `darwinConfigurations.<name>` when its system is darwin |
+| `rolesDir` | path or null | `null` | roles, imported into every host: a file or `<name>/default.nix` for NixOS, `<name>/darwin.nix` for Macs |
+| `extraRoles` | attrs of modules | `{}` | more roles by name, e.g. `omninix.roles`; `rolesDir` wins on a name clash. Pass role directories (paths) to bring their darwin halves too |
 | `usersDir` | path or null | `null` | users → host users and `homeConfigurations.<name>` |
 | `profilesDir` | path or null | `null` | profiles, imported for every user |
 | `extraProfiles` | attrs of modules | `{}` | more profiles by name, e.g. `omninix.profiles` |
 | `nixosModulesDir` | path or null | `null` | always-on NixOS modules and option libraries, imported into every host and exported as `nixosModules` |
 | `extraNixosModules` | attrs of modules | `{}` | more NixOS modules by name, e.g. another flake's `nixosModules`; `nixosModulesDir` wins on a name clash |
+| `darwinModulesDir` | path or null | `null` | the same for nix-darwin: imported into every Mac host, exported as `darwinModules` |
+| `extraDarwinModules` | attrs of modules | `{}` | more nix-darwin modules by name, e.g. another flake's `darwinModules` |
 | `homeManagerModulesDir` | path or null | `null` | the same for Home Manager: imported for every user, exported as `homeModules` |
 | `extraHomeManagerModules` | attrs of modules | `{}` | more Home Manager modules by name, e.g. another flake's `homeModules` |
 | `overlaysDir` | path or null | `null` | one overlay per `.nix` file ([details](packages-and-overlays.md)) |
 | `packagesDir` | path or null | `null` | packages → `pkgs.<name>` everywhere and `packages.<system>.<name>` |
 | `secretsPath` | path or null | `null` | sops secrets directory ([details](secrets.md)) |
 | `defaultSystem` | string | `"x86_64-linux"` | system for hosts and users not listed below |
-| `hostSystems` | attrs of strings | `{}` | per-host system, e.g. `{rpi = "aarch64-linux";}` |
+| `hostSystems` | attrs of strings | `{}` | per-host system, e.g. `{rpi = "aarch64-linux"; macbook = "aarch64-darwin";}`; a `-darwin` system makes a Mac host |
 | `userSystems` | attrs of strings | `{}` | per-user system for standalone home configs |
 | `hostInputs` | attrs of input sets | `{}` | per-host input overrides, e.g. `{desktop = {nixpkgs = …; home-manager = …;};}` ([details](packages-and-overlays.md#a-different-nixpkgs-per-host)) |
 | `userInputs` | attrs of input sets | `{}` | the same, for standalone home configs |
@@ -47,18 +50,18 @@ setting). See [Packages and overlays](packages-and-overlays.md#persystem-pkgs-fl
 
 | Output | Contents |
 |---|---|
-| `nixosConfigurations`, `homeConfigurations` | your hosts and standalone users |
-| `roles`, `profiles` | your own roles and profiles, as paths |
-| `nixosModules`, `homeModules` | your own `nixosModulesDir` / `homeManagerModulesDir` entries |
+| `nixosConfigurations`, `darwinConfigurations`, `homeConfigurations` | your hosts and standalone users |
+| `roles`, `profiles` | your own roles and profiles, as paths (a role directory carries both its halves) |
+| `nixosModules`, `darwinModules`, `homeModules` | your own `nixosModulesDir` / `darwinModulesDir` / `homeManagerModulesDir` entries |
 | `overlays.packages` | your `packagesDir` as an add-only overlay ([details](packages-and-overlays.md#sharing-them)) |
 | `hosts`, `users` | the discovered paths |
 
 Another flake can use them with `extraRoles`, `extraProfiles`,
-`extraNixosModules` and `extraHomeManagerModules`.
+`extraNixosModules`, `extraDarwinModules` and `extraHomeManagerModules`.
 
 Exports never include `extra*` entries (another flake's pieces stay theirs), or
 anything under an **`internal/`** subdirectory of `rolesDir`, `profilesDir`,
-`nixosModulesDir` or `homeManagerModulesDir`. `internal/` entries are still
+`nixosModulesDir`, `darwinModulesDir` or `homeManagerModulesDir`. `internal/` entries are still
 imported here, under their own names, so use it for pieces that only make sense
 in your flake: files that take `inputs`, personal values, site glue. A name that
 exists both in a directory and in its `internal/` is an error. Module exports are
@@ -78,6 +81,22 @@ exists both in a directory and in its `internal/` is an error. Module exports ar
 
 Hosts, roles and modules also receive `inputs`, `hostName` and `secretsPath` as
 module arguments.
+
+## Mac host options (nix-darwin)
+
+| Option | Meaning |
+|---|---|
+| `omninix.hostUsers.<name>.enable` | an existing macOS account on this host: sets its home to `/Users/<name>` and builds its Home Manager config |
+| `omninix.hostUsers.<name>.extraGroups` | NixOS only: setting it on a Mac is an error |
+| `omninix.activeUsers` | read-only list of the enabled users |
+| `omninix.requirements` | as on NixOS |
+
+With exactly one active user, `system.primaryUser` defaults to it. OmniNix
+doesn't create macOS accounts, and macOS manages passwords and groups itself,
+so the NixOS password check has no Mac counterpart. Mac hosts get the darwin
+halves of roles (`<name>/darwin.nix`); a role without one doesn't exist there.
+They're built with the host's `nix-darwin` input and packages from its
+`nixpkgs`; `hostInputs` overrides both per host.
 
 ## User options (Home Manager)
 
@@ -158,7 +177,10 @@ home-manager.users.alice.imports = [
 ];
 ```
 
-Both modules are the same files the builders import, so importing them into an
+For a hand-rolled `darwinSystem`, `darwinModules.default` adds the
+[Mac host options](#mac-host-options-nix-darwin).
+
+These modules are the same files the builders import, so importing them into an
 OmniNix host or user as well is harmless.
 
 ## Library functions
@@ -183,7 +205,8 @@ Everything else under `lib.omninix` is internal: the builders behind
 |---|---|
 | `flakeModules.default` | the flake-parts module |
 | `nixosModules.default` | the secure core and host options, without the builders ([details](#just-the-modules)) |
+| `darwinModules.default` | the Mac host options, without the builders |
 | `homeModules.default` | the user options, without the builders |
 | `lib` | nixpkgs `lib` plus `lib.omninix` ([public parts](#library-functions)) |
 | `roles`, `profiles` | the shipped roles (`impermanent`) and profiles (`developer`) |
-| `templates` | `default` (a whole config), `host`, `role`, `user`, `profile` |
+| `templates` | `default` (a whole config), `host`, `darwin-host`, `role`, `user`, `profile` |

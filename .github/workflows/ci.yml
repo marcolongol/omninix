@@ -56,6 +56,10 @@ jobs:
       - name: Standalone home build
         run: nix build .#checks.${{ matrix.system }}.home -L
 
+      - name: nix-darwin system build
+        if: runner.os == 'macOS'
+        run: nix build .#checks.${{ matrix.system }}.darwin -L
+
       - name: VM boot test (Layer 4)
         if: matrix.system == 'x86_64-linux'
         run: nix build .#checks.${{ matrix.system }}.vm -L

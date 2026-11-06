@@ -46,6 +46,10 @@ in {
         path = ../../templates/default;
         description = "A basic OmniNix configuration with example host, roles, users, and profiles";
       };
+      darwin-host = {
+        path = ../../templates/darwin-host;
+        description = "Scaffold a new OmniNix Mac host (nix flake new -t …#darwin-host hosts/<name>)";
+      };
       host = {
         path = ../../templates/host;
         description = "Scaffold a new OmniNix host (nix flake new -t …#host hosts/<name>)";

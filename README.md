@@ -1,7 +1,7 @@
 # OmniNix
 
-A small Nix library for running a fleet of NixOS machines and Home Manager users
-from a few plain directories: **hosts**, **roles**, **users** and **profiles**.
+A small Nix library for running a fleet of NixOS machines, Macs and Home Manager
+users from a few plain directories: **hosts**, **roles**, **users** and **profiles**.
 Secure defaults included.
 
 ```bash
@@ -102,8 +102,8 @@ From here on, adding something is "write a module, flip a flag".
 
 | Directory | Is a… | Answers | Turned on with |
 |---|---|---|---|
-| `hosts/` | NixOS module | which machine is this? | one file or `<name>/default.nix` per host |
-| `roles/` | NixOS module | what does it do? | `roles.<name>.enable = true;` on a host |
+| `hosts/` | NixOS or nix-darwin module | which machine is this? | one file or `<name>/default.nix` per host |
+| `roles/` | NixOS module (plus a `darwin.nix` for Macs) | what does it do? | `roles.<name>.enable = true;` on a host |
 | `users/` | Home Manager module | who is this person? | `omninix.hostUsers.<name>.enable = true;` on a host |
 | `profiles/` | Home Manager module | how do they like it? | `profiles.<name>.enable = true;` in a user |
 
@@ -111,11 +111,11 @@ Every role and profile is imported everywhere and switches itself on with its
 own `enable` option, so a typo in a role name is an evaluation error, not a
 silently ignored setting.
 
-For code that isn't a toggle, there are two more directories:
-`nixosModulesDir` and `homeManagerModulesDir`. They hold always-on modules and
-option libraries, such as a module declaring `services.surfshark`, and are
-exported as the standard `nixosModules` and `homeModules` flake outputs, so any
-flake can use them. Roles and profiles say what a host or user *is*; module
+For code that isn't a toggle, there are module directories:
+`nixosModulesDir`, `darwinModulesDir` and `homeManagerModulesDir`. They hold
+always-on modules and option libraries, such as a module declaring
+`services.surfshark`, and are exported as the standard `nixosModules`,
+`darwinModules` and `homeModules` flake outputs, so any flake can use them. Roles and profiles say what a host or user *is*; module
 directories hold what they're built from.
 
 ### Roles
@@ -187,6 +187,29 @@ Manager half:
 One host flag now drives both halves. Use a profile instead when users should
 opt in individually.
 
+### Mac hosts
+
+A host whose system is darwin is built with nix-darwin, as
+`darwinConfigurations.<name>`. Add the `nix-darwin` input and mark the host:
+
+```nix
+omninix.hostSystems.macbook = "aarch64-darwin";
+```
+
+`nix flake new -t github:marcolongol/omninix#darwin-host hosts/macbook`
+scaffolds one. Users and profiles work unchanged. A role gets its Mac half from
+a `darwin.nix` next to its `default.nix`:
+
+```
+roles/desktop/
+├── default.nix   NixOS
+├── darwin.nix    macOS
+└── home.nix      both, through home-manager.sharedModules
+```
+
+Both halves declare the same `roles.desktop.enable`, so one flag works on either
+kind of host. A role directory with only a `darwin.nix` is macOS only.
+
 ### Per-user settings on a host
 
 `config.omninix.activeUsers` lists the users enabled on the host:
@@ -199,7 +222,7 @@ home-manager.users = lib.genAttrs config.omninix.activeUsers (_: {
 
 ## Secure by default 🔐
 
-These hold no matter how you build the flake:
+On NixOS hosts, these hold no matter how you build the flake:
 
 - **No privileged groups by default.** `wheel`, `docker` and friends are granted
   per user with `extraGroups`, never implicitly.
@@ -209,6 +232,10 @@ These hold no matter how you build the flake:
 
 Not using the builders? `omninix.nixosModules.default` brings the same
 guarantees to any `nixosSystem` ([details](docs/reference.md#just-the-modules)).
+
+On Macs, macOS manages passwords and groups itself, so the first two don't
+apply. OmniNix doesn't create macOS accounts, and `extraGroups` on a Mac host
+is an error rather than silently ignored.
 
 ## Guides
 
@@ -233,27 +260,27 @@ guarantees to any `nixosSystem` ([details](docs/reference.md#just-the-modules)).
 Templates for single pieces, copied with the Nix CLI:
 
 ```bash
-nix flake new -t github:marcolongol/omninix#host    hosts/laptop
-nix flake new -t github:marcolongol/omninix#role    roles/webserver
-nix flake new -t github:marcolongol/omninix#user    users/alice
-nix flake new -t github:marcolongol/omninix#profile profiles/desktop
+nix flake new -t github:marcolongol/omninix#host        hosts/laptop
+nix flake new -t github:marcolongol/omninix#darwin-host hosts/macbook
+nix flake new -t github:marcolongol/omninix#role        roles/webserver
+nix flake new -t github:marcolongol/omninix#user        users/alice
+nix flake new -t github:marcolongol/omninix#profile     profiles/desktop
 ```
 
 Rename the placeholder `enable` option to match the directory afterwards.
 
 ## Scope and alternatives
 
-OmniNix targets a **Linux NixOS + Home Manager fleet**: organized, composable and
-safe to deploy. Users also build standalone on macOS, but hosts are NixOS only:
-there's no nix-darwin support. Everything is the stock NixOS module system
+OmniNix targets a **fleet of NixOS machines and Macs with Home Manager users**:
+organized, composable and safe to deploy. Everything is the stock module system
 (options, `mkIf`, merging, assertions), so nothing here is new to learn beyond
 the directory layout.
 
 Other projects may fit better:
 
 - **[Blueprint](https://github.com/numtide/blueprint)**: folders mapped straight
-  to flake outputs, with no module layer of its own. Lighter, and supports
-  nix-darwin hosts. Its docs don't cover secrets or user defaults.
+  to flake outputs, with no module layer of its own. Lighter. Its docs don't
+  cover secrets or user defaults.
 - **[Clan](https://clan.lol)**: a full fleet manager with an inventory, built-in
   secrets, and install and update commands. Much more opinionated, with its
   own model to adopt.
@@ -270,8 +297,8 @@ tests that boot real machines.
 ## Status
 
 Not released yet: `main` may change without notice. Tested against the current
-NixOS stable release and nixos-unstable, plus standalone Home Manager on Linux
-and macOS.
+NixOS stable release and nixos-unstable, plus nix-darwin hosts and standalone
+Home Manager on Linux and macOS.
 
 Feedback and ideas are welcome in the issues.
 

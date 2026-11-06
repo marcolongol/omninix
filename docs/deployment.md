@@ -1,7 +1,8 @@
 # Deploying to your machines
 
-OmniNix builds ordinary `nixosConfigurations`, so anything that deploys those
-works unchanged. Two common setups:
+OmniNix builds ordinary `nixosConfigurations` and `darwinConfigurations`, so
+anything that deploys those works unchanged. Two common setups for NixOS hosts,
+then Macs:
 
 ## nixos-rebuild over SSH
 
@@ -68,9 +69,37 @@ nix run github:serokell/deploy-rs -- .#web
 The architecture in `deploy-rs.lib.<system>` must match the host's (its
 `hostSystems` entry, or `defaultSystem`).
 
+## Macs
+
+Mac hosts (`darwinConfigurations`) are switched on the Mac itself. The first
+time, before `darwin-rebuild` is installed:
+
+```bash
+sudo nix run nix-darwin/nix-darwin-26.05#darwin-rebuild -- switch --flake .#macbook
+```
+
+and afterwards:
+
+```bash
+sudo darwin-rebuild switch --flake .#macbook
+```
+
+nix-darwin recommends the `nixpkgs-26.05-darwin` branch for Macs. To use it
+without moving your NixOS hosts, point the Macs at it with `hostInputs`:
+
+```nix
+inputs.nixpkgs-darwin.url = "github:nixos/nixpkgs?ref=nixpkgs-26.05-darwin";
+inputs.nix-darwin = {
+  url = "github:nix-darwin/nix-darwin/nix-darwin-26.05";
+  inputs.nixpkgs.follows = "nixpkgs-darwin";
+};
+
+omninix.hostInputs.macbook.nixpkgs = inputs.nixpkgs-darwin;
+```
+
 ## Before the first deploy
 
-- **Passwords.** A host whose active users have no password doesn't build (see
+- **Passwords (NixOS).** A host whose active users have no password doesn't build (see
   [Passwords and secrets](secrets.md)). Don't deploy with
   `omninix.allowInsecureBootstrap` still on.
 - **sops-nix keys.** The target decrypts with its SSH host key, so its age
