@@ -56,7 +56,9 @@
             # Avoid naming a file and a directory the same within one scan dir.
             if type == "regular" && final.hasSuffix ".nix" fn
             then final.nameValuePair (final.removeSuffix ".nix" fn) (f (dir + "/${fn}"))
-            else if type == "directory" && builtins.pathExists "${dir}/${fn}/default.nix"
+            # A path here too: the interpolated string names a store copy of
+            # `dir` that `nix flake check --no-build` never creates.
+            else if type == "directory" && builtins.pathExists (dir + "/${fn}/default.nix")
             then final.nameValuePair fn (f (dir + "/${fn}"))
             else null
         ))
