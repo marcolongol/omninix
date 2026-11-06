@@ -37,7 +37,8 @@
     omninixHomeModule ? ../modules/home,
     extraModules ? [],
   }:
-    [(import omninixHomeModule)]
+  # A path, not `import`ed, so it dedups with homeModules.default.
+    [omninixHomeModule]
     ++ (lib.optionals (userFile != null) [(import userFile)])
     ++ (lib.optional (inputs ? sops-nix) inputs.sops-nix.homeManagerModules.sops)
     # Passed by closure, not as a module arg, so it works without extraSpecialArgs.

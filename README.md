@@ -155,6 +155,9 @@ user, and on its own for a machine without NixOS:
 home-manager switch --flake .#alice
 ```
 
+That includes macOS: set `userSystems.alice = "aarch64-darwin";` and the home
+lands in `/Users/alice`.
+
 ### Roles with a home side
 
 Some features need both halves. A desktop needs a compositor and audio on the
@@ -197,8 +200,13 @@ These hold no matter how you build the flake:
   to evaluate, with a message saying how to fix it.
 - **Unfree software is off** until you set `omninix.allowUnfree = true;`.
 
+Not using the builders? `omninix.nixosModules.default` brings the same
+guarantees to any `nixosSystem` ([details](docs/reference.md#just-the-modules)).
+
 ## Guides
 
+- [Migrating a hand-rolled config](docs/migrating.md): move an existing flake
+  over one host at a time, and prove nothing changed.
 - [Passwords and secrets](docs/secrets.md): sops-nix wiring, or bring your own
   (agenix, plain hashes).
 - [Impermanence and root wipe](docs/impermanence.md): keep state in `/persist`,
@@ -207,6 +215,7 @@ These hold no matter how you build the flake:
   `pkgs.<name>`, and overriding nixpkgs.
 - [Third-party modules](docs/third-party-modules.md): disko, stylix,
   nixos-hardware and friends, per host or fleet-wide.
+- [Deploying](docs/deployment.md): `nixos-rebuild --target-host` and deploy-rs.
 - [Sharing roles, profiles and modules](docs/sharing.md): use other flakes'
   pieces, write shareable ones, and the check that proves it.
 - [Reference](docs/reference.md): every option, the shipped roles and profiles,
@@ -228,7 +237,8 @@ Rename the placeholder `enable` option to match the directory afterwards.
 ## Scope
 
 OmniNix targets a **Linux NixOS + Home Manager fleet**: organized, composable and
-safe to deploy. It deliberately doesn't try to describe one feature across NixOS,
+safe to deploy. Users also build standalone on macOS, but hosts are NixOS only:
+there's no nix-darwin support. It deliberately doesn't try to describe one feature across NixOS,
 Darwin and other module systems at once. If you need that, look at an
 aspect-oriented framework such as [den](https://github.com/denful/den).
 
@@ -238,11 +248,8 @@ assertions), so nothing here is new to learn beyond the directory layout.
 ## Status
 
 Maturing from a personal config into a reusable library; the surface documented
-here is the committed API. Planned:
-
-- `nixosModules.default` / `homeModules.default`, so the secure module can be
-  used without the builders.
-- A migration guide from a hand-rolled NixOS config.
+here is the committed API. Tested on NixOS stable and unstable; standalone
+Home Manager on Linux and macOS.
 
 Feedback and ideas are welcome in the issues.
 

@@ -13,6 +13,10 @@
   hasPersistence = options ? environment && options.environment ? persistence;
   root = config.fileSystems."/" or {};
 
+  # Newer nixpkgs (26.11+) dropped scripted initrd: the enable option is then a
+  # hidden removed-option stub, and systemd initrd is the only kind left.
+  systemdInitrd = !(options.boot.initrd.systemd.enable.visible or true) || config.boot.initrd.systemd.enable;
+
   subvolOf = fs: map (lib.removePrefix "subvol=") (lib.filter (lib.hasPrefix "subvol=") (fs.options or []));
   trimSlashes = s: lib.removeSuffix "/" (lib.removePrefix "/" s);
 
@@ -108,7 +112,7 @@ in {
           message = "roles.impermanent.wipe: fileSystems.\"/\" must be btrfs.";
         }
         {
-          assertion = config.boot.initrd.systemd.enable;
+          assertion = systemdInitrd;
           message = "roles.impermanent.wipe: requires boot.initrd.systemd.enable.";
         }
         {

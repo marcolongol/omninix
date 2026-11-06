@@ -14,10 +14,15 @@
       inherit inputs;
       defaultSystem = pkgs.stdenv.hostPlatform.system;
       roles.impermanent = ../roles/impermanent.nix;
-      hosts.wipe = {...}: {
+      hosts.wipe = {
+        lib,
+        options,
+        ...
+      }: {
         imports = [./stubs/impermanence.nix extra];
         system.stateVersion = "26.05";
-        boot.initrd.systemd.enable = true;
+        # Only on nixpkgs that still has scripted initrd (see roles/impermanent.nix).
+        boot.initrd.systemd.enable = lib.mkIf (options.boot.initrd.systemd.enable.visible or true) true;
         fileSystems."/" = {
           device = "/dev/disk/by-label/nixos";
           fsType = "btrfs";

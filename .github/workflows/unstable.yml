@@ -1,0 +1,43 @@
+name: Unstable
+
+# The eval suite against nixos-unstable and Home Manager master, so breakage
+# in the next NixOS release shows up here before users report it. Scheduled
+# rather than per-PR: unstable moves on its own, and shouldn't block merges.
+on:
+  schedule:
+    - cron: "0 7 * * 1,4"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Tests (${{ matrix.system }}, unstable)
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - system: x86_64-linux
+            runner: ubuntu-latest
+          - system: aarch64-darwin
+            runner: macos-latest
+    env:
+      OVERRIDES: >-
+        --override-input nixpkgs github:nixos/nixpkgs/nixos-unstable
+        --override-input home-manager github:nix-community/home-manager
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@v31
+        with:
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+
+      - name: Eval tests
+        run: nix build .#checks.${{ matrix.system }}.eval -L $OVERRIDES
+
+      - name: Standalone home build
+        run: nix build .#checks.${{ matrix.system }}.home -L $OVERRIDES

@@ -25,6 +25,9 @@ jobs:
             runner: ubuntu-latest
           - system: aarch64-linux
             runner: ubuntu-24.04-arm
+          # Standalone Home Manager only: NixOS hosts don't build on macOS.
+          - system: aarch64-darwin
+            runner: macos-latest
     steps:
       - uses: actions/checkout@v6
 
@@ -46,8 +49,12 @@ jobs:
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
 
+      # On darwin this is Layers 1 and 2c only (lib, standalone homes).
       - name: Eval tests (Layer 1 lib + Layer 2 config)
         run: nix build .#checks.${{ matrix.system }}.eval -L
+
+      - name: Standalone home build
+        run: nix build .#checks.${{ matrix.system }}.home -L
 
       - name: VM boot test (Layer 4)
         if: matrix.system == 'x86_64-linux'
@@ -61,4 +68,5 @@ jobs:
         run: nix flake check -L
 
       - name: Template smoke test (Layer 3)
+        if: runner.os == 'Linux'
         run: bash tests/smoke.sh

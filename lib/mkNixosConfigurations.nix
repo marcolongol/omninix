@@ -101,7 +101,10 @@
               # Nixpkgs configuration module (overlays and config)
               nixpkgsModule = {
                 nixpkgs.overlays = overlays;
-                nixpkgs.config.allowUnfree = allowUnfree;
+                # Only set when on (nixpkgs defaults to off): nixpkgs.config
+                # merges without priorities or conflicts, so `false` here would
+                # silently override a host's own allowUnfree = true.
+                nixpkgs.config = final.optionalAttrs allowUnfree {allowUnfree = true;};
               };
 
               # Base required modules for OmniNix framework. The host file is a

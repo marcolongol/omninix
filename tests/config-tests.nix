@@ -38,6 +38,23 @@
 
   evalHost = args: (evalSystem args).config;
 
+  scriptedInitrd = (evalSystem {module = bootstrapUser;}).options.boot.initrd.systemd.enable.visible or true;
+
+  # A hand-rolled nixosSystem with only nixosModules.default: no builder.
+  evalCore = module:
+    (inputs.nixpkgs.lib.nixosSystem {
+      inherit system;
+      modules = [
+        inputs.self.nixosModules.default
+        {
+          boot.isContainer = true;
+          system.stateVersion = "26.05";
+        }
+        module
+      ];
+    })
+    .config;
+
   # Minimal active user that passes fail-closed via the bootstrap flag.
   bootstrapUser = {...}: {
     omninix.hostUsers.alice.enable = true;
@@ -63,9 +80,14 @@
   impHost = extra:
     evalHost {
       roles.impermanent = ../roles/impermanent.nix;
-      module = {lib, ...}: {
+      module = {
+        lib,
+        options,
+        ...
+      }: {
         imports = [./stubs/impermanence.nix extra];
-        boot.initrd.systemd.enable = true;
+        # Only on nixpkgs that still has scripted initrd (see roles/impermanent.nix).
+        boot.initrd.systemd.enable = lib.mkIf (options.boot.initrd.systemd.enable.visible or true) true;
         fileSystems."/" = {
           device = "/dev/disk/by-label/nixos";
           fsType = "btrfs";
@@ -358,8 +380,11 @@ in {
     expected = true;
   };
 
+  # Only testable where scripted initrd still exists (nixpkgs before 26.11).
   testImpermanentWipeRequiresSystemdInitrd = {
-    expr = hasFailingAssertion "boot.initrd.systemd.enable" (wipeHost {boot.initrd.systemd.enable = lib.mkForce false;});
+    expr =
+      !scriptedInitrd
+      || hasFailingAssertion "boot.initrd.systemd.enable" (wipeHost {boot.initrd.systemd.enable = lib.mkForce false;});
     expected = true;
   };
 
@@ -420,6 +445,48 @@ in {
     expected = false;
   };
 
+  # --- nixosModules.default (no builder) ----------------------------------
+
+  # The security model holds in a hand-rolled nixosSystem too.
+  testCoreFailsClosed = {
+    expr = hasFailingAssertion "no password" (evalCore {omninix.hostUsers.alice.enable = true;});
+    expected = true;
+  };
+
+  testCoreCreatesUserWithOptInGroups = {
+    expr = let
+      u =
+        (evalCore {
+          omninix.hostUsers.alice = {
+            enable = true;
+            extraGroups = ["wheel"];
+          };
+          users.users.alice.hashedPassword = "$y$fixture";
+        })
+        .users
+        .users
+        .alice;
+    in {inherit (u) isNormalUser extraGroups;};
+    expected = {
+      isNormalUser = true;
+      extraGroups = ["wheel"];
+    };
+  };
+
+  # Importing nixosModules.default into a builder host dedups with the
+  # builder's own copy instead of declaring the options twice.
+  testCoreDedupsWithBuilder = {
+    expr =
+      (evalHost {
+        module = {...}: {
+          imports = [inputs.self.nixosModules.default bootstrapUser];
+        };
+      })
+      .omninix
+      .activeUsers;
+    expected = ["alice"];
+  };
+
   # --- per-host system ------------------------------------------------
 
   testHostSystemsOverride = {
@@ -448,8 +515,35 @@ in {
   # --- nixpkgs config + namespace --------------------------------
 
   testAllowUnfreeDefaultsFalse = {
-    expr = (evalHost {module = bootstrapUser;}).nixpkgs.config.allowUnfree;
+    expr = (evalSystem {module = bootstrapUser;}).pkgs.config.allowUnfree;
     expected = false;
+  };
+
+  testAllowUnfreeReachesHostPkgs = {
+    expr =
+      (evalSystem {
+        module = bootstrapUser;
+        allowUnfree = true;
+      })
+      .pkgs
+      .config
+      .allowUnfree;
+    expected = true;
+  };
+
+  # A host's own setting wins over the flake-wide default.
+  testHostAllowUnfreeWins = {
+    expr =
+      (evalSystem {
+        module = {...}: {
+          imports = [bootstrapUser];
+          nixpkgs.config.allowUnfree = true;
+        };
+      })
+      .pkgs
+      .config
+      .allowUnfree;
+    expected = true;
   };
 
   testDefaultUserGroupsDefaultsEmpty = {

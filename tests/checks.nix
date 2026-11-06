@@ -1,9 +1,10 @@
 # OmniNix flake checks.
 #
 # Exposes the eval test suites (Layer 1 lib, Layer 2 config-behaviour, Layer 2b
-# flake entry points) as a single `eval` derivation that fails — printing the
-# offending cases — if any lib.runTests case's result differs from its expected
-# value. The VM tests (Layer 4) are added on Linux.
+# flake entry points, Layer 2c standalone homes) as a single `eval` derivation
+# that fails — printing the offending cases — if any lib.runTests case's result
+# differs from its expected value. `home` builds a standalone home on every
+# system; the VM tests (Layer 4) are added on Linux.
 #
 # Run everything with: nix flake check
 {
@@ -20,6 +21,7 @@
   # to evaluate NixOS-on-darwin for the darwin systems and fail.
   evalTests =
     (import ./lib-tests.nix {inherit omninix lib;})
+    // (import ./home-tests.nix {inherit inputs omninix system;})
     // (lib.optionalAttrs isLinux (import ./config-tests.nix {inherit inputs omninix lib system;}))
     // (lib.optionalAttrs isLinux (import ./flake-tests.nix {inherit inputs omninix lib system;}));
 
@@ -55,6 +57,15 @@
 in
   {
     inherit eval;
+    # A real standalone Home Manager build, so macOS CI proves homes activate there.
+    home =
+      (omninix.mkHomeConfigurations {
+        inherit inputs;
+        defaultSystem = system;
+        users.alice = ./fixtures/flake/users/alice.nix;
+      })
+      .alice
+      .activationPackage;
   }
   // lib.optionalAttrs isLinux {
     vm = import ./vm-test.nix {inherit pkgs inputs lib;};

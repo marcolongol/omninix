@@ -82,6 +82,8 @@
                   then "/Users/${userName}"
                   else "/home/${userName}"
                 );
+              # Frozen: never bump with the nixpkgs pin. Users who don't set it
+              # would silently move to a newer stateVersion.
               home.stateVersion = lib.mkDefault "26.05";
             };
           in

@@ -67,8 +67,9 @@ On every boot, before the root is mounted, the old root subvolume is moved to
 `old_roots/<timestamp>` and a fresh empty one takes its place. Archived roots
 older than `keepDays` are deleted.
 
-Requirements: `/` on **btrfs**, mounted with `subvol=<name>`, and
-`boot.initrd.systemd.enable = true`.
+Requirements: `/` on **btrfs**, mounted with `subvol=<name>`, and a systemd
+initrd: `boot.initrd.systemd.enable = true` on NixOS 26.05. From 26.11 it's the
+only kind of initrd, so there's nothing to set.
 
 ### Built-in safety
 

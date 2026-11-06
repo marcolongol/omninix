@@ -5,6 +5,7 @@
 - [User options](#user-options-home-manager)
 - [Shipped roles and profiles](#shipped-roles-and-profiles)
 - [Without flake-parts](#without-flake-parts)
+- [Just the modules](#just-the-modules)
 - [Library functions](#library-functions)
 - [Flake outputs](#flake-outputs)
 
@@ -161,6 +162,52 @@ let o = omninix.lib.omninix; in {
 `debug`. `mkHomeConfigurations` takes the user-side equivalents, plus
 `userSystems`.
 
+## Just the modules
+
+No directories and no builders: `nixosModules.default` adds the `omninix.*`
+host options and the security model to any `nixosSystem`. Use it to harden a
+hand-rolled config, or to run OmniNix roles and profiles from another flake in
+one.
+
+```nix
+nixosConfigurations.laptop = nixpkgs.lib.nixosSystem {
+  system = "x86_64-linux";
+  modules = [
+    omninix.nixosModules.default
+    omninix.roles.impermanent # any OmniNix role works the same way
+    ./configuration.nix
+  ];
+};
+```
+
+```nix
+# configuration.nix
+omninix.hostUsers.alice = {
+  enable = true;
+  extraGroups = ["wheel"];
+};
+users.users.alice.hashedPasswordFile = "/run/secrets/alice-password";
+```
+
+That gives you the [host options](#host-options-nixos) and the guarantees: the
+user is created with only the groups you list, and the build fails if any
+active user has no password. The builders' extras stay with the builders: sops
+passwords from `secretsPath`, and Home Manager users from `usersDir`.
+
+For Home Manager, `homeModules.default` adds the [user options](#user-options-home-manager)
+that profiles use (`omninix.persistence`, `omninix.requirements`):
+
+```nix
+home-manager.users.alice.imports = [
+  omninix.homeModules.default
+  omninix.profiles.developer
+  {profiles.developer.enable = true;}
+];
+```
+
+Both modules are the same files the builders import, so importing them into an
+OmniNix host or user as well is harmless.
+
 ## Library functions
 
 Under `omninix.lib.omninix`:
@@ -185,6 +232,8 @@ Under `omninix.lib.omninix`:
 | Output | Contents |
 |---|---|
 | `flakeModules.default` | the flake-parts module |
+| `nixosModules.default` | the secure core and host options, without the builders ([details](#just-the-modules)) |
+| `homeModules.default` | the user options, without the builders |
 | `lib` | nixpkgs `lib` plus `lib.omninix` |
 | `roles`, `profiles` | the shipped roles (`impermanent`) and profiles (`developer`) |
 | `templates` | `default` (a whole config), `host`, `role`, `user`, `profile` |
