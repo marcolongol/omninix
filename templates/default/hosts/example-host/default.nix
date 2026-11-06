@@ -1,6 +1,9 @@
-{ config, lib, pkgs, ... }:
-
 {
+  config,
+  lib,
+  pkgs,
+  ...
+}: {
   system.stateVersion = "26.05";
 
   imports = [
@@ -40,7 +43,7 @@
   omninix.hostUsers = {
     example-user = {
       enable = true;
-      extraGroups = [ "wheel" ]; # this user can sudo; add "docker" etc. as needed
+      extraGroups = ["wheel"]; # this user can sudo; add "docker" etc. as needed
     };
   };
 

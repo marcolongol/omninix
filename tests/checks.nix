@@ -30,9 +30,9 @@
   # Render failures with toPretty so any Nix value is safe to print (functions,
   # attrsets, …), unlike toJSON.
   report = lib.concatMapStringsSep "\n" (f: ''
-      ✗ ${f.name}
-          expected: ${lib.generators.toPretty {multiline = false;} f.expected}
-          got:      ${lib.generators.toPretty {multiline = false;} f.result}'')
+    ✗ ${f.name}
+        expected: ${lib.generators.toPretty {multiline = false;} f.expected}
+        got:      ${lib.generators.toPretty {multiline = false;} f.result}'')
   failures;
 
   eval =

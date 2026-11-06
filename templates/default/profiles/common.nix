@@ -1,6 +1,9 @@
-{ config, lib, pkgs, ... }:
-
 {
+  config,
+  lib,
+  pkgs,
+  ...
+}: {
   options.profiles.common.enable = lib.mkEnableOption "common home configuration";
 
   config = lib.mkIf config.profiles.common.enable {

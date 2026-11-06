@@ -1,6 +1,9 @@
-{ config, lib, pkgs, ... }:
-
 {
+  config,
+  lib,
+  pkgs,
+  ...
+}: {
   options.roles.common.enable = lib.mkEnableOption "common system configuration";
 
   config = lib.mkIf config.roles.common.enable {
@@ -30,7 +33,7 @@
 
     # Nix settings
     nix.settings = {
-      experimental-features = [ "nix-command" "flakes" ];
+      experimental-features = ["nix-command" "flakes"];
       auto-optimise-store = true;
     };
 

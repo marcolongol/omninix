@@ -103,12 +103,20 @@ in {
   };
 
   testMkFlakeNoPackagesWithoutDir = {
-    expr = omninix.mkFlake inputs {hostsDir = settings.hostsDir; defaultSystem = system;} ? packages;
+    expr =
+      omninix.mkFlake inputs {
+        hostsDir = settings.hostsDir;
+        defaultSystem = system;
+      } ? packages;
     expected = false;
   };
 
   testMkFlakeNoOverlaysWithoutDir = {
-    expr = omninix.mkFlake inputs {hostsDir = settings.hostsDir; defaultSystem = system;} ? overlays;
+    expr =
+      omninix.mkFlake inputs {
+        hostsDir = settings.hostsDir;
+        defaultSystem = system;
+      } ? overlays;
     expected = false;
   };
 
@@ -191,12 +199,12 @@ in {
 
   # Standalone homeConfigurations get the same HM sops default.
   testMkFlakeHomeSopsDefaultFile = {
-    expr =
-      toString (omninix.mkFlake consumerInputs (settings
-        // {
-          secretsPath = ./fixtures/secrets;
-          defaultSystem = system;
-        }))
+    expr = toString
+    (omninix.mkFlake consumerInputs (settings
+      // {
+        secretsPath = ./fixtures/secrets;
+        defaultSystem = system;
+      }))
       .homeConfigurations
       .alice
       .config

@@ -63,67 +63,66 @@
     # Home Manager is optional: without the input there is nothing to
     # build, so we degrade gracefully to an empty attrset (mirrors the
     # optional-input detection in mkNixosConfigurations).
-    if !(inputs ? home-manager)
-    then debugTrace "Skipping home configurations (no home-manager input)" {}
-    else
-      debugTrace "Building ${toString (builtins.length (builtins.attrNames users))} home configuration(s)" (
-        final.mapAttrs (
-          userName: userPath: let
-            system = debugTrace "Processing user: ${userName}" (userSystems.${userName} or defaultSystem);
-            # This user's inputs: the flake's, with its userInputs entry on top.
-            inputs' = inputs // (userInputs.${userName} or {});
-            pkgs =
-              if (userInputs.${userName} or {}) ? nixpkgs
-              then pkgsFor inputs'.nixpkgs system
-              else pkgsBySystem.${system};
+      if !(inputs ? home-manager)
+      then debugTrace "Skipping home configurations (no home-manager input)" {}
+      else
+        debugTrace "Building ${toString (builtins.length (builtins.attrNames users))} home configuration(s)" (
+          final.mapAttrs (
+            userName: userPath: let
+              system = debugTrace "Processing user: ${userName}" (userSystems.${userName} or defaultSystem);
+              # This user's inputs: the flake's, with its userInputs entry on top.
+              inputs' = inputs // (userInputs.${userName} or {});
+              pkgs =
+                if (userInputs.${userName} or {}) ? nixpkgs
+                then pkgsFor inputs'.nixpkgs system
+                else pkgsBySystem.${system};
 
-            # Identity module: standalone Home Manager has no NixOS user to
-            # supply these, so infer them from the directory name. mkDefault
-            # lets a user's own config override them. homeDirectory follows the
-            # platform (darwin uses /Users), except root's, which is /root.
-            # The stateVersion default matches the NixOS fallback in modules/nixos.
-            identityModule = {lib, ...}: {
-              home.username = lib.mkDefault userName;
-              home.homeDirectory =
-                lib.mkDefault (
+              # Identity module: standalone Home Manager has no NixOS user to
+              # supply these, so infer them from the directory name. mkDefault
+              # lets a user's own config override them. homeDirectory follows the
+              # platform (darwin uses /Users), except root's, which is /root.
+              # The stateVersion default matches the NixOS fallback in modules/nixos.
+              identityModule = {lib, ...}: {
+                home.username = lib.mkDefault userName;
+                home.homeDirectory = lib.mkDefault (
                   if userName == "root"
                   then "/root"
                   else if lib.hasSuffix "darwin" system
                   then "/Users/${userName}"
                   else "/home/${userName}"
                 );
-              # Frozen: never bump with the nixpkgs pin. Users who don't set it
-              # would silently move to a newer stateVersion.
-              home.stateVersion = lib.mkDefault "26.05";
-            };
-          in
-            inputs'.home-manager.lib.homeManagerConfiguration {
-              inherit pkgs;
+                # Frozen: never bump with the nixpkgs pin. Users who don't set it
+                # would silently move to a newer stateVersion.
+                home.stateVersion = lib.mkDefault "26.05";
+              };
+            in
+              inputs'.home-manager.lib.homeManagerConfiguration {
+                inherit pkgs;
 
-              # Matches the modules/nixos extraSpecialArgs (inputs,
-              # secretsPath) so a single user file can be shared between
-              # the NixOS submodule and standalone paths.
-              extraSpecialArgs =
-                {
-                  inherit secretsPath;
-                  inputs = inputs';
-                }
-                // specialArgs;
+                # Matches the modules/nixos extraSpecialArgs (inputs,
+                # secretsPath) so a single user file can be shared between
+                # the NixOS submodule and standalone paths.
+                extraSpecialArgs =
+                  {
+                    inherit secretsPath;
+                    inputs = inputs';
+                  }
+                  // specialArgs;
 
-              # Same import set as home-manager.users.<name> in
-              # modules/nixos (via the shared mkHomeModules helper), plus
-              # the standalone-only identity module.
-              modules =
-                [identityModule]
-                ++ final.omninix.mkHomeModules {
-                  inherit userName secretsPath;
-                  inputs = inputs';
-                  lib = final;
-                  userFile = userPath;
-                  inherit profiles homeManagerModules extraModules omninixHomeModule;
-                };
-            }
-        )
-        users
-      );
+                # Same import set as home-manager.users.<name> in
+                # modules/nixos (via the shared mkHomeModules helper), plus
+                # the standalone-only identity module.
+                modules =
+                  [identityModule]
+                  ++ final.omninix.mkHomeModules {
+                    inherit userName secretsPath;
+                    inputs = inputs';
+                    lib = final;
+                    userFile = userPath;
+                    inherit profiles homeManagerModules extraModules omninixHomeModule;
+                  };
+              }
+          )
+          users
+        );
 }

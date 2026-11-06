@@ -1,6 +1,9 @@
-{ config, lib, pkgs, ... }:
-
 {
+  config,
+  lib,
+  pkgs,
+  ...
+}: {
   home.stateVersion = "26.05";
 
   # Profiles this user enables (enable-based).

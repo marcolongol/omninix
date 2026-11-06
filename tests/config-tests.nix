@@ -657,7 +657,8 @@ in {
   testSopsSecretWiredToUser = {
     expr = let
       cfg = evalHost aliceWithSecret;
-    in cfg.users.users.alice.hashedPasswordFile == cfg.sops.secrets."user-password-alice".path;
+    in
+      cfg.users.users.alice.hashedPasswordFile == cfg.sops.secrets."user-password-alice".path;
     expected = true;
   };
 
@@ -687,25 +688,29 @@ in {
   # It reaches HM by closure, so it survives an empty extraSpecialArgs (the
   # portability check's setup).
   testHomeSopsDefaultWithoutSpecialArgs = {
-    expr = toString (evalHost {
-      inherit (aliceWithSecret) secretsPath;
-      module = {lib, ...}: {
-        omninix.hostUsers.alice.enable = true;
-        home-manager.extraSpecialArgs = lib.mkForce {};
-      };
-    }).home-manager.users.alice.sops.defaultSopsFile;
+    expr =
+      toString
+      (evalHost {
+        inherit (aliceWithSecret) secretsPath;
+        module = {lib, ...}: {
+          omninix.hostUsers.alice.enable = true;
+          home-manager.extraSpecialArgs = lib.mkForce {};
+        };
+      }).home-manager.users.alice.sops.defaultSopsFile;
     expected = toString (secretsFixture + "/users/alice.yaml");
   };
 
   # mkDefault: a user's own value wins.
   testHomeSopsDefaultOverridable = {
-    expr = toString (evalHost {
-      inherit (aliceWithSecret) secretsPath;
-      module = {...}: {
-        omninix.hostUsers.alice.enable = true;
-        home-manager.users.alice.sops.defaultSopsFile = secretsFixture;
-      };
-    }).home-manager.users.alice.sops.defaultSopsFile;
+    expr =
+      toString
+      (evalHost {
+        inherit (aliceWithSecret) secretsPath;
+        module = {...}: {
+          omninix.hostUsers.alice.enable = true;
+          home-manager.users.alice.sops.defaultSopsFile = secretsFixture;
+        };
+      }).home-manager.users.alice.sops.defaultSopsFile;
     expected = toString secretsFixture;
   };
 

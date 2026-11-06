@@ -1,8 +1,11 @@
 # Rename `myrole` below to match this directory's name, then enable it on a host
 # with `roles.<name>.enable = true;`.
-{ config, lib, pkgs, ... }:
-
 {
+  config,
+  lib,
+  pkgs,
+  ...
+}: {
   options.roles.myrole.enable = lib.mkEnableOption "myrole";
 
   config = lib.mkIf config.roles.myrole.enable {
@@ -20,6 +23,6 @@
     #   with lib.mkMerge [ { ... } (lib.optionalAttrs (options ? foo) { foo.enable = true; }) ]
   };
 }
-
 # Roles are exported for other flakes to reuse. One that reads your flake
 # `inputs` or holds personal values belongs in roles/internal/ instead.
+
