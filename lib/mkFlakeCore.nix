@@ -79,8 +79,8 @@
       # your own directory overrides imported extras on name collision
       # (warned). A role's enable option name is baked into its file, so only
       # one file per name may be imported — cherry-pick a library with
-      # `inherit (omninix.roles) ...` or `builtins.removeAttrs` (or
-      # omninix.lib.omninix.pick/drop) to avoid overlaps.
+      # `inherit (omninix.roles) ...` or `builtins.removeAttrs` to avoid
+      # overlaps.
       withExtra = kind: extra: let
         local = discovered.${kind} or {};
         collisions = builtins.attrNames (builtins.intersectAttrs local extra);

@@ -129,32 +129,6 @@ in {
     expected = {a = "y";};
   };
 
-  testPickSelectsSubset = {
-    expr = omninix.pick ["a" "c"] {
-      a = 1;
-      b = 2;
-      c = 3;
-    };
-    expected = {
-      a = 1;
-      c = 3;
-    };
-  };
-
-  testDropRemoves = {
-    expr = omninix.drop ["a"] {
-      a = 1;
-      b = 2;
-    };
-    expected = {b = 2;};
-  };
-
-  # pick throws (not a cryptic getAttrs error) on a missing name.
-  testPickThrowsOnMissing = {
-    expr = (builtins.tryEval (omninix.pick ["nope"] {a = 1;})).success;
-    expected = false;
-  };
-
   # --- validations ----------------------------
 
   testAssertIsStringOk = {

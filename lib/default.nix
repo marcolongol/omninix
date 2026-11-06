@@ -2,7 +2,7 @@
 #
 # nixpkgs.lib extended with an `omninix` namespace: the builders and the
 # engine behind flakeModules.default (internal), plus the helpers documented
-# as public API (pick, drop).
+# (internal: the public API is the flake's modules).
 #
 # Type: { inputs :: { nixpkgs :: Flake, ... } } -> Lib
 #
@@ -11,7 +11,7 @@
 # uniformly.
 #
 #   validations.nix            - assert* input guards, validate* path helpers
-#   utils.nix                  - generic helpers (mapAttrsMaybe, mkDebugTrace, pick, drop)
+#   utils.nix                  - generic helpers (mapAttrsMaybe, mkDebugTrace)
 #   discovery.nix              - directory scanning (forAllNixFiles, mkDirMap, loadOverlays)
 #   mkNixosConfigurations.nix  - mkNixosConfigurations
 #   mkDarwinConfigurations.nix - mkDarwinConfigurations (nix-darwin hosts)

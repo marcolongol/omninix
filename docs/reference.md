@@ -112,8 +112,9 @@ User files and profiles receive `inputs` and `secretsPath`.
 ## Shipped roles and profiles
 
 Pull them in with `extraRoles = omninix.roles;` and
-`extraProfiles = omninix.profiles;`, or pick single ones with
-`omninix.lib.omninix.pick`.
+`extraProfiles = omninix.profiles;`, pick single ones with
+`extraRoles = {inherit (omninix.roles) impermanent;};`, or take all but some
+with `builtins.removeAttrs omninix.profiles ["developer"]`.
 
 ### `roles.impermanent`
 
@@ -185,19 +186,10 @@ OmniNix host or user as well is harmless.
 
 ## Library functions
 
-Under `omninix.lib.omninix`, for picking pieces from another flake:
-
-| Function | What it does |
-|---|---|
-| `pick [names] attrs` | only the named entries (throws on a typo) |
-| `drop [names] attrs` | everything except the named entries |
-
-```nix
-omninix.extraRoles = omninix.lib.omninix.pick ["impermanent"] omninix.roles;
-```
-
-Everything else under `lib.omninix` is internal: the builders behind
-`flakeModules.default`, which may change at any time.
+`omninix.lib` is nixpkgs' `lib` plus `lib.omninix`, which is internal: the
+builders behind `flakeModules.default`, which may change at any time. To pick
+pieces from another flake, use plain Nix: `inherit (their.roles) desktop;`, or
+`builtins.removeAttrs` for all but some.
 
 ## Flake outputs
 
@@ -207,6 +199,6 @@ Everything else under `lib.omninix` is internal: the builders behind
 | `nixosModules.default` | the secure core and host options, without the builders ([details](#just-the-modules)) |
 | `darwinModules.default` | the Mac host options, without the builders |
 | `homeModules.default` | the user options, without the builders |
-| `lib` | nixpkgs `lib` plus `lib.omninix` ([public parts](#library-functions)) |
+| `lib` | nixpkgs `lib` plus `lib.omninix` ([internal](#library-functions)) |
 | `roles`, `profiles` | the shipped roles (`impermanent`) and profiles (`developer`) |
 | `templates` | `default` (a whole config), `host`, `darwin-host`, `role`, `user`, `profile` |

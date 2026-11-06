@@ -43,33 +43,4 @@
     if debug
     then builtins.trace "[OmniNix Debug] ${msg}" val
     else val;
-
-  # Select only the named entries from an attrset (e.g. cherry-pick roles or
-  # profiles from a library before passing as extraRoles/extraProfiles).
-  #
-  # Type: [String] -> AttrSet -> AttrSet
-  #
-  # Throws, listing missing and available names, if a requested name is absent.
-  #
-  # Example:
-  #   omninix.pick [ "impermanent" ] omninix.roles
-  pick = names: attrs: let
-    missing = builtins.filter (n: !(attrs ? ${n})) names;
-  in
-    if missing != []
-    then
-      throw ''
-        OmniNix: pick: attribute(s) not found: ${toString missing}
-        Available: ${toString (builtins.attrNames attrs)}
-      ''
-    else final.getAttrs names attrs;
-
-  # Drop the named entries from an attrset (e.g. take a whole library except the
-  # ones you override locally).
-  #
-  # Type: [String] -> AttrSet -> AttrSet
-  #
-  # Example:
-  #   omninix.drop [ "developer" ] omninix.profiles
-  drop = names: attrs: builtins.removeAttrs attrs names;
 }
