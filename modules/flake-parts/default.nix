@@ -59,57 +59,60 @@ in {
     ++ lib.optional darwinFlakeModule inputs.nix-darwin.flakeModules.default;
 
   options.omninix = {
-    hostsDir = dirOption "Directory of hosts; each .nix file or dir/default.nix becomes nixosConfigurations.<name>.";
-    rolesDir = dirOption "Directory of system roles, imported into every host.";
+    hostsDir = dirOption "Hosts, one per `.nix` file or `<name>/default.nix`. Each becomes `nixosConfigurations.<name>`, or `darwinConfigurations.<name>` when its system is darwin.";
+    rolesDir = dirOption "Roles, imported into every host: a file or `<name>/default.nix` for NixOS hosts, `<name>/darwin.nix` for Mac hosts. Each declares its own `roles.<name>.enable`.";
     extraRoles = mkOption {
       type = moduleSet;
       default = {};
-      description = "Extra roles by name (e.g. omninix.roles). Local rolesDir wins on collision.";
+      description = "More roles by name, e.g. `omninix.roles` or another flake's `roles`. `rolesDir` wins on a name clash. Pass role directories (paths) to bring their darwin halves too.";
     };
-    usersDir = dirOption "Directory of users; each also becomes homeConfigurations.<name>.";
-    profilesDir = dirOption "Directory of Home Manager profiles, imported for every user.";
+    usersDir = dirOption "Users (Home Manager modules), one per `.nix` file or `<name>/default.nix`. Each is a host user where `omninix.hostUsers.<name>.enable` is set, and also `homeConfigurations.<name>`.";
+    profilesDir = dirOption "Profiles (Home Manager modules), imported for every user. Each declares its own `profiles.<name>.enable`.";
     extraProfiles = mkOption {
       type = moduleSet;
       default = {};
-      description = "Extra profiles by name (e.g. omninix.profiles). Local profilesDir wins on collision.";
+      description = "More profiles by name, e.g. `omninix.profiles`. `profilesDir` wins on a name clash.";
     };
-    nixosModulesDir = dirOption "Directory of NixOS modules imported into every host.";
+    nixosModulesDir = dirOption "Always-on NixOS modules and option libraries, imported into every NixOS host and exported as `nixosModules`.";
     extraNixosModules = mkOption {
       type = moduleSet;
       default = {};
-      description = "Extra NixOS modules by name (e.g. another flake's nixosModules), imported into every host. Local nixosModulesDir wins on collision.";
+      description = "More NixOS modules by name, e.g. another flake's `nixosModules`, imported into every NixOS host. `nixosModulesDir` wins on a name clash.";
     };
-    homeManagerModulesDir = dirOption "Directory of Home Manager modules imported for every user.";
+    homeManagerModulesDir = dirOption "The same for Home Manager: imported for every user, exported as `homeModules`.";
     extraHomeManagerModules = mkOption {
       type = moduleSet;
       default = {};
-      description = "Extra Home Manager modules by name (e.g. another flake's homeModules), imported for every user. Local homeManagerModulesDir wins on collision.";
+      description = "More Home Manager modules by name, e.g. another flake's `homeModules`, imported for every user. `homeManagerModulesDir` wins on a name clash.";
     };
-    darwinModulesDir = dirOption "Directory of nix-darwin modules imported into every darwin host, exported as darwinModules.";
+    darwinModulesDir = dirOption "The same for nix-darwin: imported into every Mac host, exported as `darwinModules`.";
     extraDarwinModules = mkOption {
       type = moduleSet;
       default = {};
-      description = "Extra nix-darwin modules by name (e.g. another flake's darwinModules), imported into every darwin host. Local darwinModulesDir wins on collision.";
+      description = "More nix-darwin modules by name, e.g. another flake's `darwinModules`, imported into every Mac host. `darwinModulesDir` wins on a name clash.";
     };
-    overlaysDir = dirOption "Overlays: one per .nix file, or a file/default.nix returning a list.";
-    packagesDir = dirOption "Packages (callPackage form): pkgs.<name> everywhere and perSystem.packages.<name>.";
-    secretsPath = dirOption "sops-nix secrets directory (users/<name>.yaml, <host>.yaml).";
+    overlaysDir = dirOption "Overlays for every host, home and package build: one per `.nix` file, or a file or `default.nix` returning a list.";
+    packagesDir = dirOption "Packages in `callPackage` form, one per `.nix` file: `pkgs.<name>` everywhere, `packages.<system>.<name>`, and the shareable `overlays.packages`.";
+    secretsPath = dirOption "sops-nix secrets directory: `users/<name>.yaml` holds a user's `hashed-password`, and `<host>.yaml` is the host's default sops file.";
     defaultSystem = mkOption {
       type = types.str;
       default = "x86_64-linux";
-      description = "System for hosts and users not listed in hostSystems/userSystems.";
+      description = "System for hosts and users not listed in `hostSystems` / `userSystems`.";
     };
     hostSystems = mkOption {
       type = types.attrsOf types.str;
       default = {};
-      example = {rpi = "aarch64-linux";};
-      description = "Per-host system override.";
+      example = {
+        rpi = "aarch64-linux";
+        macbook = "aarch64-darwin";
+      };
+      description = "Per-host system. A `-darwin` system makes the host a Mac, built with nix-darwin. Unknown host names are an error.";
     };
     userSystems = mkOption {
       type = types.attrsOf types.str;
       default = {};
       example = {alice = "aarch64-darwin";};
-      description = "Per-user system override for standalone homeConfigurations.";
+      description = "Per-user system for standalone `homeConfigurations`. Unknown user names are an error.";
     };
     hostInputs = mkOption {
       type = types.attrsOf (types.lazyAttrsOf types.raw);
@@ -122,17 +125,17 @@ in {
           };
         }
       '';
-      description = "Per-host input overrides, merged over the flake's inputs for that host only (its nixosSystem, home-manager/sops-nix modules and `inputs` argument).";
+      description = "Per-host input overrides, merged over the flake's inputs for that host only: its `nixosSystem` or `darwinSystem`, the auto-wired Home Manager and sops-nix modules, and its `inputs` argument. Unknown host names are an error.";
     };
     userInputs = mkOption {
       type = types.attrsOf (types.lazyAttrsOf types.raw);
       default = {};
-      description = "Per-user input overrides for standalone homeConfigurations, like hostInputs.";
+      description = "The same as `hostInputs`, for standalone `homeConfigurations`.";
     };
     allowUnfree = mkOption {
       type = types.bool;
       default = false;
-      description = "Allow unfree packages on hosts, home configs, packages and perSystem pkgs.";
+      description = "Allow unfree packages on every host, home and package build, and in `perSystem` pkgs. A single host can opt in with `nixpkgs.config.allowUnfree` instead.";
     };
     debug = mkOption {
       type = types.bool;

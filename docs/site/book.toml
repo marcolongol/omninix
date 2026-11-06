@@ -1,0 +1,8 @@
+[book]
+title = "OmniNix"
+description = "A small Nix library for running a fleet of NixOS machines, Macs and Home Manager users."
+language = "en"
+src = "src"
+
+[output.html]
+git-repository-url = "https://github.com/marcolongol/omninix"

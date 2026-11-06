@@ -76,10 +76,18 @@ in {
     pkgs,
     system,
     ...
-  }: {
-    checks = import ../../tests/checks.nix {
-      inherit pkgs system inputs lib;
-    };
+  }: let
+    # The documentation site (docs/site): `nix build .#docs`.
+    docs = import ../../docs/site {inherit pkgs lib inputs self;};
+  in {
+    checks =
+      import ../../tests/checks.nix {
+        inherit pkgs system inputs lib;
+      }
+      # Building the site renders every option page, so broken docs fail CI.
+      // lib.optionalAttrs pkgs.stdenv.hostPlatform.isLinux {inherit docs;};
+
+    packages.docs = docs;
 
     devShells.default = pkgs.mkShellNoCC {
       packages = with pkgs; [
@@ -87,6 +95,7 @@ in {
         alejandra # formatter
         statix # linter
         deadnix # dead-code finder
+        mdbook # docs/site preview
       ];
     };
   };

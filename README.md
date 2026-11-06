@@ -8,6 +8,8 @@ Secure defaults included.
 nix flake init -t github:marcolongol/omninix
 ```
 
+Documentation: **[marcolongol.github.io/omninix](https://marcolongol.github.io/omninix)**
+
 ## What it looks like
 
 ```
@@ -252,8 +254,8 @@ is an error rather than silently ignored.
 - [Deploying](docs/deployment.md): `nixos-rebuild --target-host` and deploy-rs.
 - [Sharing roles, profiles and modules](docs/sharing.md): use other flakes'
   pieces, write shareable ones, and the check that proves it.
-- [Reference](docs/reference.md): every option, the shipped roles and profiles,
-  and the library functions.
+- [Reference](docs/reference.md): outputs, the standalone modules, and the
+  option pages for the flake, hosts, users and shipped roles and profiles.
 
 ## Scaffolding
 
