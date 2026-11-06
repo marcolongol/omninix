@@ -23,7 +23,7 @@
     (import ./lib-tests.nix {inherit omninix lib;})
     // (import ./home-tests.nix {inherit inputs omninix system;})
     // (lib.optionalAttrs isLinux (import ./config-tests.nix {inherit inputs omninix lib system;}))
-    // (lib.optionalAttrs isLinux (import ./flake-tests.nix {inherit inputs omninix lib system;}));
+    // (lib.optionalAttrs isLinux (import ./flake-tests.nix {inherit inputs lib system;}));
 
   failures = lib.runTests evalTests;
 

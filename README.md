@@ -111,6 +111,13 @@ Every role and profile is imported everywhere and switches itself on with its
 own `enable` option, so a typo in a role name is an evaluation error, not a
 silently ignored setting.
 
+For code that isn't a toggle, there are two more directories:
+`nixosModulesDir` and `homeManagerModulesDir`. They hold always-on modules and
+option libraries, such as a module declaring `services.surfshark`, and are
+exported as the standard `nixosModules` and `homeModules` flake outputs, so any
+flake can use them. Roles and profiles say what a host or user *is*; module
+directories hold what they're built from.
+
 ### Roles
 
 ```nix
@@ -219,7 +226,7 @@ guarantees to any `nixosSystem` ([details](docs/reference.md#just-the-modules)).
 - [Sharing roles, profiles and modules](docs/sharing.md): use other flakes'
   pieces, write shareable ones, and the check that proves it.
 - [Reference](docs/reference.md): every option, the shipped roles and profiles,
-  the library functions, and using OmniNix without flake-parts.
+  and the library functions.
 
 ## Scaffolding
 
@@ -234,22 +241,37 @@ nix flake new -t github:marcolongol/omninix#profile profiles/desktop
 
 Rename the placeholder `enable` option to match the directory afterwards.
 
-## Scope
+## Scope and alternatives
 
 OmniNix targets a **Linux NixOS + Home Manager fleet**: organized, composable and
 safe to deploy. Users also build standalone on macOS, but hosts are NixOS only:
-there's no nix-darwin support. It deliberately doesn't try to describe one feature across NixOS,
-Darwin and other module systems at once. If you need that, look at an
-aspect-oriented framework such as [den](https://github.com/denful/den).
+there's no nix-darwin support. Everything is the stock NixOS module system
+(options, `mkIf`, merging, assertions), so nothing here is new to learn beyond
+the directory layout.
 
-Everything is the stock NixOS module system (options, `mkIf`, merging,
-assertions), so nothing here is new to learn beyond the directory layout.
+Other projects may fit better:
+
+- **[Blueprint](https://github.com/numtide/blueprint)**: folders mapped straight
+  to flake outputs, with no module layer of its own. Lighter, and supports
+  nix-darwin hosts. Its docs don't cover secrets or user defaults.
+- **[Clan](https://clan.lol)**: a full fleet manager with an inventory, built-in
+  secrets, and install and update commands. Much more opinionated, with its
+  own model to adopt.
+- **[den](https://github.com/denful/den)**: aspect-oriented. One feature
+  described once across NixOS, nix-darwin and Home Manager.
+- **[Snowfall Lib](https://github.com/snowfallorg/lib)**: directory conventions
+  for systems, homes, modules and packages, with nix-darwin hosts, on its own
+  `mkFlake`. Its code hasn't changed since December 2025, and its README asks
+  for new maintainers.
+
+Choose OmniNix for plain modules on flake-parts, with safe user defaults and
+tests that boot real machines.
 
 ## Status
 
-Maturing from a personal config into a reusable library; the surface documented
-here is the committed API. Tested on NixOS stable and unstable; standalone
-Home Manager on Linux and macOS.
+Not released yet: `main` may change without notice. Tested against the current
+NixOS stable release and nixos-unstable, plus standalone Home Manager on Linux
+and macOS.
 
 Feedback and ideas are welcome in the issues.
 

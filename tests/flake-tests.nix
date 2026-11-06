@@ -1,10 +1,9 @@
 # OmniNix Layer 2b — flake entry point tests (lib.runTests format).
 #
-# mkFlake output shape, and flakeModules.default checked against mkFlake on
-# the same fixture.
+# flakeModules.default on the fixture flakes: outputs, packages and overlays,
+# typed options, sharing.
 {
   inputs,
-  omninix,
   lib,
   system,
 }: let
@@ -26,11 +25,17 @@
     };
 
   plain = evalFlake {};
+  # The fixture flake with extra omninix settings on top.
+  flakeWith = extra:
+    inputs.flake-parts.lib.mkFlake {inputs = consumerInputs;} {
+      imports = [inputs.self.flakeModules.default];
+      systems = [system];
+      omninix = settings // {defaultSystem = system;} // extra;
+    };
   bare = inputs.flake-parts.lib.evalFlakeModule {inputs = consumerInputs;} {
     imports = [inputs.self.flakeModules.default];
     systems = [system];
   };
-  viaMkFlake = omninix.mkFlake consumerInputs (settings // {defaultSystem = system;});
 
   probe = module:
     (evalFlake {
@@ -48,11 +53,9 @@
     }
     .probe;
 
-  toplevel = c: c.nixosConfigurations.test.config.system.build.toplevel.drvPath;
-
   # A host from the flake fixture with extra roles/profiles and modules.
   withExtras = extra: modules:
-    ((omninix.mkFlake consumerInputs (settings // {defaultSystem = system;} // extra))
+    ((flakeWith extra)
       .nixosConfigurations
       .test
       .extendModules {inherit modules;})
@@ -61,7 +64,7 @@
 
   # A consumer's own nixpkgs with the exported overlay (twice: shadowing).
   withOverlays = overlays: import inputs.nixpkgs {inherit system overlays;};
-  consumerPkgs = withOverlays [viaMkFlake.overlays.packages];
+  consumerPkgs = withOverlays [plain.overlays.packages];
 
   # Sharing fixture: each piece declares options.fixture.<name>, so a probe of
   # which options exist shows what was imported.
@@ -78,7 +81,6 @@
       extraHomeManagerModules.extra = sharing + "/extra-home.nix";
       defaultSystem = system;
     };
-  sharingMkFlake = omninix.mkFlake consumerInputs sharingSettings;
   evalSharing = module:
     inputs.flake-parts.lib.mkFlake {inputs = consumerInputs;} {
       imports = [inputs.self.flakeModules.default module];
@@ -97,33 +99,29 @@
     homeModules = builtins.attrNames out.homeModules;
   };
 in {
-  testMkFlakeOutputNames = {
-    expr = builtins.attrNames viaMkFlake;
-    expected = ["homeConfigurations" "homeModules" "hosts" "nixosConfigurations" "nixosModules" "overlays" "packages" "profiles" "roles" "users"];
+  testFlakeModuleOutputNames = {
+    expr = builtins.all (n: plain ? ${n}) ["homeConfigurations" "homeModules" "hosts" "nixosConfigurations" "nixosModules" "overlays" "packages" "profiles" "roles" "users"];
+    expected = true;
   };
 
-  testMkFlakeNoPackagesWithoutDir = {
-    expr =
-      omninix.mkFlake inputs {
-        hostsDir = settings.hostsDir;
-        defaultSystem = system;
-      } ? packages;
-    expected = false;
-  };
-
-  testMkFlakeNoOverlaysWithoutDir = {
-    expr =
-      omninix.mkFlake inputs {
-        hostsDir = settings.hostsDir;
-        defaultSystem = system;
-      } ? overlays;
-    expected = false;
+  # Without packagesDir: no packages and no overlays.packages.
+  testFlakeModuleNoPackagesWithoutDir = let
+    out = flakeWith {packagesDir = null;};
+  in {
+    expr = {
+      packages = out.packages.${system};
+      overlay = (out.overlays or {}) ? packages;
+    };
+    expected = {
+      packages = {};
+      overlay = false;
+    };
   };
 
   # overlays.packages gives a consumer's own pkgs the same packages.
   testOverlayPackagesMatchPackages = {
     expr = consumerPkgs.hello-fixture.drvPath;
-    expected = viaMkFlake.packages.${system}.hello-fixture.drvPath;
+    expected = plain.packages.${system}.hello-fixture.drvPath;
   };
 
   # A package taking `inputs` can't be shared; it throws on use only.
@@ -139,13 +137,8 @@ in {
   };
 
   testOverlayPackagesRejectShadowing = {
-    expr = (builtins.tryEval (withOverlays [viaMkFlake.overlays.packages viaMkFlake.overlays.packages]).hello-fixture.drvPath).success;
+    expr = (builtins.tryEval (withOverlays [plain.overlays.packages plain.overlays.packages]).hello-fixture.drvPath).success;
     expected = false;
-  };
-
-  testFlakeModuleOverlayPackagesMatchMkFlake = {
-    expr = (withOverlays [plain.overlays.packages]).hello-fixture.drvPath;
-    expected = consumerPkgs.hello-fixture.drvPath;
   };
 
   testFlakeModuleConsumerOverlayWins = {
@@ -153,22 +146,17 @@ in {
     expected = {marker = true;};
   };
 
-  testMkFlakeSystemsDefaultToDefaultSystem = {
-    expr = builtins.attrNames viaMkFlake.packages;
-    expected = [system];
-  };
-
   # Packages asking for `inputs` get the consumer's (consumerInputs has marker).
-  testMkFlakePackageGetsInputs = {
-    expr = builtins.readFile viaMkFlake.packages.${system}.inputs-fixture;
+  testFlakeModulePackageGetsInputs = {
+    expr = builtins.readFile plain.packages.${system}.inputs-fixture;
     expected = "true";
   };
 
   # meta.platforms filters packages.<system>, but pkgs.<name> remains.
-  testMkFlakePackagesFilteredByPlatform = {
+  testFlakeModulePackagesFilteredByPlatform = {
     expr = {
-      output = viaMkFlake.packages.${system} ? other-platform-fixture;
-      pkgs = viaMkFlake.nixosConfigurations.test.pkgs ? other-platform-fixture;
+      output = plain.packages.${system} ? other-platform-fixture;
+      pkgs = plain.nixosConfigurations.test.pkgs ? other-platform-fixture;
     };
     expected = {
       output = false;
@@ -176,35 +164,23 @@ in {
     };
   };
 
-  testMkFlakePackagesMatchHostPkgs = {
-    expr = viaMkFlake.packages.${system}.hello-fixture.drvPath;
-    expected = viaMkFlake.nixosConfigurations.test.pkgs.hello-fixture.drvPath;
-  };
-
   testFlakeModuleDedupsDoubleImport = {
     expr = builtins.attrNames (evalFlake {imports = [inputs.self.flakeModules.default];}).nixosConfigurations;
     expected = ["test"];
   };
 
-  testFlakeModuleHostMatchesMkFlake = {
-    expr = toplevel plain == toplevel viaMkFlake;
-    expected = true;
-  };
-
-  # Guards path coercion: discovered paths must match mkFlake's exactly.
-  testFlakeModuleDiscoveredPathsMatchMkFlake = {
-    expr = {inherit (plain) hosts users roles profiles;};
-    expected = {inherit (viaMkFlake) hosts users roles profiles;};
+  # Guards path coercion: discovered entries stay paths, not strings.
+  testFlakeModuleDiscoveredPathsStayPaths = {
+    expr = {inherit (plain) hosts users;};
+    expected = {
+      hosts.test = fixture + "/hosts/test.nix";
+      users.alice = fixture + "/users/alice.nix";
+    };
   };
 
   # Standalone homeConfigurations get the same HM sops default.
-  testMkFlakeHomeSopsDefaultFile = {
-    expr = toString
-    (omninix.mkFlake consumerInputs (settings
-      // {
-        secretsPath = ./fixtures/secrets;
-        defaultSystem = system;
-      }))
+  testFlakeModuleHomeSopsDefaultFile = {
+    expr = toString (flakeWith {secretsPath = ./fixtures/secrets;})
       .homeConfigurations
       .alice
       .config
@@ -218,11 +194,6 @@ in {
     expected = true;
   };
 
-  testFlakeModuleHomeMatchesMkFlake = {
-    expr = plain.homeConfigurations.alice.activationPackage.drvPath;
-    expected = viaMkFlake.homeConfigurations.alice.activationPackage.drvPath;
-  };
-
   testFlakeModuleHomeConfigurationsMerge = {
     expr = builtins.attrNames (evalFlake {flake.homeConfigurations.extra = {};}).homeConfigurations;
     expected = ["alice" "extra"];
@@ -231,11 +202,6 @@ in {
   testFlakeModuleHomeFlakeModuleReimport = {
     expr = builtins.attrNames (evalFlake {imports = [inputs.home-manager.flakeModules.home-manager];}).homeConfigurations;
     expected = ["alice"];
-  };
-
-  testFlakeModuleKeepsMkFlakeOutputs = {
-    expr = builtins.all (n: plain ? ${n}) (builtins.attrNames viaMkFlake);
-    expected = true;
   };
 
   testFlakeModulePackagesMatchHostPkgs = {
@@ -347,7 +313,7 @@ in {
     expected = false;
   };
 
-  # hostInputs/userInputs reach the builders through both entry points.
+  # hostInputs/userInputs reach the builders.
   testHostAndUserInputsPassThrough = let
     overrides = {
       hostInputs.test.marker = "host";
@@ -358,19 +324,10 @@ in {
       user = c.homeConfigurations.alice._module.specialArgs.inputs.marker;
     };
   in {
-    expr = {
-      module = seen (evalFlake {omninix = overrides;});
-      mkFlake = seen (omninix.mkFlake consumerInputs (settings // {defaultSystem = system;} // overrides));
-    };
+    expr = seen (flakeWith overrides);
     expected = {
-      module = {
-        host = "host";
-        user = "user";
-      };
-      mkFlake = {
-        host = "host";
-        user = "user";
-      };
+      host = "host";
+      user = "user";
     };
   };
 
@@ -396,7 +353,7 @@ in {
   # Same in Home Manager. Standalone home configs raise failed assertions
   # eagerly (with the message), so check that it fails, against a control.
   testRequirementHome = let
-    home = extra: (omninix.mkFlake consumerInputs (settings // {defaultSystem = system;} // extra)).homeConfigurations.alice;
+    home = extra: (flakeWith extra).homeConfigurations.alice;
   in {
     expr = {
       missing = (builtins.tryEval (builtins.attrNames (home {extraProfiles.requiring = sharing + "/requiring-profile.nix";}))).success;
@@ -426,30 +383,25 @@ in {
 
   # Hosts import every role and NixOS module: own, internal/ and extra*.
   testSharingHostImportsAll = {
-    expr = fixtureOptions sharingMkFlake.nixosConfigurations.test;
+    expr = fixtureOptions sharingPlain.nixosConfigurations.test;
     expected = ["nixosExtra" "nixosPrivate" "nixosPublic" "roleExtra" "rolePrivate" "rolePublic"];
   };
 
   # Users get every profile and HM module: own, internal/ and extra*.
   testSharingHomeImportsAll = {
-    expr = fixtureOptions sharingMkFlake.homeConfigurations.alice;
+    expr = fixtureOptions sharingPlain.homeConfigurations.alice;
     expected = ["homeExtra" "homePrivate" "homePublic" "profilePrivate" "profilePublic"];
   };
 
   # Exports are this flake's own pieces only: no internal/, no extra*.
-  testSharingMkFlakeExportsOwnOnly = {
-    expr = exportNames sharingMkFlake;
+  testSharingExportsOwnOnly = {
+    expr = exportNames sharingPlain;
     expected = {
       roles = ["public"];
       profiles = ["pub"];
       nixosModules = ["mod"];
       homeModules = ["hmod"];
     };
-  };
-
-  testSharingFlakeModuleExportsOwnOnly = {
-    expr = exportNames sharingPlain;
-    expected = exportNames sharingMkFlake;
   };
 
   # flake-parts wraps module exports (_class, imports = [path]).
@@ -467,11 +419,11 @@ in {
     expected = {
       nixos = {
         _class = "nixos";
-        paths = [sharingMkFlake.nixosModules.mod];
+        paths = [(sharing + "/nixos/mod.nix")];
       };
       home = {
         _class = "homeManager";
-        paths = [sharingMkFlake.homeModules.hmod];
+        paths = [(sharing + "/home/hmod.nix")];
       };
     };
   };
@@ -513,11 +465,7 @@ in {
   testSharingInternalClashThrows = {
     expr =
       (builtins.tryEval (builtins.attrNames
-        (omninix.mkFlake consumerInputs {
-          inherit (settings) hostsDir;
-          rolesDir = ./fixtures/sharing-clash/roles;
-          defaultSystem = system;
-        })
+        (flakeWith {rolesDir = ./fixtures/sharing-clash/roles;})
         .roles))
       .success;
     expected = false;

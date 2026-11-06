@@ -1,15 +1,10 @@
 # OmniNix Library
 #
-# This library provides utilities for building NixOS configurations using the
-# OmniNix framework. It extends nixpkgs.lib with custom functions for managing
-# hosts, roles, users, and profiles.
+# nixpkgs.lib extended with an `omninix` namespace: the builders and the
+# engine behind flakeModules.default (internal), plus the helpers documented
+# as public API (pick, drop).
 #
 # Type: { inputs :: { nixpkgs :: Flake, ... } } -> Lib
-#
-# Usage:
-#   { inputs }: let
-#     lib = import ./lib { inherit inputs; };
-#   in lib.omninix.mkFlake inputs { ... }
 #
 # Structure: the `omninix` namespace is assembled from focused files, each merged
 # into a single `lib.extend` fixpoint so cross-references (final.omninix.*) resolve
@@ -21,7 +16,7 @@
 #   mkNixosConfigurations.nix  - mkNixosConfigurations
 #   mkHomeModules.nix          - mkHomeModules (shared per-user HM module set)
 #   mkHomeConfigurations.nix   - mkHomeConfigurations (standalone HM)
-#   mkFlake.nix                - mkFlake (high-level entry point) + internal mkFlakeCore engine
+#   mkFlakeCore.nix            - mkFlakeCore, the engine behind flakeModules.default (internal)
 {inputs}: let
   # Extend the Nixpkgs lib with OmniNix custom functions. `final` is the fixpoint
   # of the extended lib; each fragment receives what it needs (the fixpoint
@@ -35,7 +30,7 @@
         // (import ./mkNixosConfigurations.nix {inherit final;})
         // (import ./mkHomeModules.nix)
         // (import ./mkHomeConfigurations.nix {inherit final;})
-        // (import ./mkFlake.nix {inherit final;});
+        // (import ./mkFlakeCore.nix {inherit final;});
     }
   );
 in

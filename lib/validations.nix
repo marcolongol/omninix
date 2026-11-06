@@ -132,7 +132,7 @@
     if path != null && !builtins.pathExists path
     then
       # lib.warn (not builtins.trace): emits on stderr as a proper warning and
-      # is suppressible by consumers, matching the warnIf in mkFlake.
+      # is suppressible by consumers, matching the warnIf in mkFlakeCore.
       final.warn ''
         OmniNix: optional directory does not exist and will be ignored: ${name}
         Path: ${toString path}

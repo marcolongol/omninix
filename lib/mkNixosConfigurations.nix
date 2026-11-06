@@ -67,7 +67,7 @@
     nixosModules ? {},
     overlays ? [],
     # Allow unfree packages system-wide. Defaults to false (free software by
-    # default); set allowUnfree = true in mkFlake to opt in.
+    # default); set omninix.allowUnfree = true to opt in.
     allowUnfree ? false,
     extraModules ? [],
     specialArgs ? {},
@@ -77,6 +77,7 @@
   }: let
     debugTrace = final.omninix.mkDebugTrace debug;
   in
+    assert final.omninix.assertKnownNames "hostSystems" hosts hostSystems;
     assert final.omninix.assertKnownNames "hostInputs" hosts hostInputs;
       debugTrace "Building ${toString (builtins.length (builtins.attrNames hosts))} host(s)" (
         final.mapAttrs (

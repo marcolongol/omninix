@@ -38,7 +38,7 @@
   #
   # Returns a `msg: val:` function that traces msg (prefixed) and returns
   # val when debug is true, or returns val untouched otherwise. Shared by
-  # mkNixosConfigurations, mkHomeConfigurations, and mkFlake.
+  # mkNixosConfigurations, mkHomeConfigurations, and mkFlakeCore.
   mkDebugTrace = debug: msg: val:
     if debug
     then builtins.trace "[OmniNix Debug] ${msg}" val

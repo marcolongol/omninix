@@ -59,6 +59,7 @@
     # don't override nixpkgs in userInputs.
     pkgsBySystem = final.genAttrs (final.unique ([defaultSystem] ++ final.attrValues userSystems)) (pkgsFor inputs.nixpkgs);
   in
+    assert final.omninix.assertKnownNames "userSystems" users userSystems;
     assert final.omninix.assertKnownNames "userInputs" users userInputs;
     # Home Manager is optional: without the input there is nothing to
     # build, so we degrade gracefully to an empty attrset (mirrors the

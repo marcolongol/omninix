@@ -1,7 +1,7 @@
 # OmniNix profile: developer
 #
 # NOTE: contains UNFREE packages (ngrok, dbeaver-bin). Enabling this profile
-# therefore requires allowUnfree = true (mkFlake argument / omninix.allowUnfree).
+# therefore requires allowUnfree = true (omninix.allowUnfree).
 #
 # NOTE: uses recent Home Manager options (programs.claude-code,
 # programs.ssh.enableDefaultConfig). An older home-manager pin may fail with

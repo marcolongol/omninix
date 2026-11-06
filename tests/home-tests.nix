@@ -90,6 +90,16 @@ in {
     expected = false;
   };
 
+  testUserSystemsUnknownUserThrows = {
+    expr =
+      (builtins.tryEval (builtins.attrNames (omninix.mkHomeConfigurations {
+        inherit inputs;
+        users.alice = ./fixtures/flake/users/alice.nix;
+        userSystems.bob = "aarch64-darwin";
+      }))).success;
+    expected = false;
+  };
+
   # homeModules.default is the module the builders import, so importing it
   # again (as a hand-rolled config would) dedups instead of redeclaring.
   testHomeModuleDefaultDedups = {

@@ -1,5 +1,5 @@
 # OmniNix flake-parts module (flakeModules.default): typed options over
-# mkFlakeCore, the engine mkFlake also uses.
+# mkFlakeCore, the internal engine.
 {omninixLib}: {
   config,
   lib,
@@ -9,7 +9,7 @@
   inherit (lib) mkOption types;
   cfg = config.omninix;
 
-  # Passed through untouched (paths stay paths); one definition per name, like mkFlake.
+  # Passed through untouched (paths stay paths); one definition per name.
   moduleSet = types.attrsOf (types.addCheck types.raw (v: builtins.isPath v || builtins.isString v || builtins.isFunction v || builtins.isAttrs v));
 
   dirOption = description:

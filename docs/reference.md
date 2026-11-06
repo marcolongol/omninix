@@ -4,7 +4,6 @@
 - [Host options](#host-options-nixos)
 - [User options](#user-options-home-manager)
 - [Shipped roles and profiles](#shipped-roles-and-profiles)
-- [Without flake-parts](#without-flake-parts)
 - [Just the modules](#just-the-modules)
 - [Library functions](#library-functions)
 - [Flake outputs](#flake-outputs)
@@ -23,9 +22,9 @@ fails with its file location.
 | `usersDir` | path or null | `null` | users → host users and `homeConfigurations.<name>` |
 | `profilesDir` | path or null | `null` | profiles, imported for every user |
 | `extraProfiles` | attrs of modules | `{}` | more profiles by name, e.g. `omninix.profiles` |
-| `nixosModulesDir` | path or null | `null` | NixOS modules imported into every host |
+| `nixosModulesDir` | path or null | `null` | always-on NixOS modules and option libraries, imported into every host and exported as `nixosModules` |
 | `extraNixosModules` | attrs of modules | `{}` | more NixOS modules by name, e.g. another flake's `nixosModules`; `nixosModulesDir` wins on a name clash |
-| `homeManagerModulesDir` | path or null | `null` | Home Manager modules imported for every user |
+| `homeManagerModulesDir` | path or null | `null` | the same for Home Manager: imported for every user, exported as `homeModules` |
 | `extraHomeManagerModules` | attrs of modules | `{}` | more Home Manager modules by name, e.g. another flake's `homeModules` |
 | `overlaysDir` | path or null | `null` | one overlay per `.nix` file ([details](packages-and-overlays.md)) |
 | `packagesDir` | path or null | `null` | packages → `pkgs.<name>` everywhere and `packages.<system>.<name>` |
@@ -116,54 +115,6 @@ CLI developer tools: git and shell tooling, Docker and Kubernetes CLIs, and
 more. It contains **unfree** packages, so it needs `allowUnfree = true`, plus a
 recent Home Manager.
 
-## Without flake-parts
-
-### `mkFlake`
-
-The same engine as a plain function. It takes the options above as arguments,
-plus `systems`:
-
-```nix
-outputs = {omninix, ...} @ inputs:
-  omninix.lib.omninix.mkFlake inputs {
-    hostsDir = ./hosts;
-    rolesDir = ./roles;
-    usersDir = ./users;
-    profilesDir = ./profiles;
-    systems = ["x86_64-linux"];
-  };
-```
-
-It returns `nixosConfigurations`, `homeConfigurations`, `hosts`, `roles`,
-`users`, `profiles`, `nixosModules`, `homeModules`, and `packages` plus
-`overlays.packages` when `packagesDir` is set. It also takes `extraNixosModules` and
-`extraHomeManagerModules`.
-
-### À la carte
-
-Call the builders yourself and keep full control of your outputs. They still
-include OmniNix's NixOS module, so the secure defaults apply.
-
-```nix
-let o = omninix.lib.omninix; in {
-  nixosConfigurations = o.mkNixosConfigurations {
-    inherit inputs;
-    hosts = o.forAllNixFiles ./hosts (p: p);
-    roles = o.forAllNixFiles ./roles (p: p);
-    users = o.forAllNixFiles ./users (p: p);
-    profiles = o.forAllNixFiles ./profiles (p: p);
-    secretsPath = ./secrets;
-    extraModules = [ /* more NixOS modules */ ];
-  };
-}
-```
-
-`mkNixosConfigurations` takes `inputs`, `hosts`, `roles`, `users`, `profiles`,
-`nixosModules`, `homeManagerModules`, `overlays`, `extraModules`,
-`specialArgs`, `secretsPath`, `defaultSystem`, `hostSystems`, `hostInputs`,
-`allowUnfree` and `debug`. `mkHomeConfigurations` takes the user-side
-equivalents, plus `userSystems` and `userInputs`.
-
 ## Just the modules
 
 No directories and no builders: `nixosModules.default` adds the `omninix.*`
@@ -212,22 +163,19 @@ OmniNix host or user as well is harmless.
 
 ## Library functions
 
-Under `omninix.lib.omninix`:
+Under `omninix.lib.omninix`, for picking pieces from another flake:
 
 | Function | What it does |
 |---|---|
-| `mkFlake inputs { … }` | discover the directories and build everything (above) |
-| `mkNixosConfigurations { … }` | build NixOS systems from host/role/user/profile sets |
-| `mkHomeConfigurations { … }` | build standalone Home Manager configs |
-| `mkHomeModules { … }` | the module list one user's Home Manager config is built from |
-| `forAllNixFiles dir f` | `{ <name> = f path; }` for each `.nix` file or `<dir>/default.nix` |
-| `mkDirMap { name = dir; }` | `forAllNixFiles` over several directories |
-| `loadOverlays path` | overlays from a directory (one per file) or a file returning a list |
-| `discoverPieces dir` | `{ all; exportable; }`: like `forAllNixFiles`, plus `dir/internal/` in `all` only |
 | `pick [names] attrs` | only the named entries (throws on a typo) |
 | `drop [names] attrs` | everything except the named entries |
 
-`omninix.lib` is nixpkgs' `lib` with these added.
+```nix
+omninix.extraRoles = omninix.lib.omninix.pick ["impermanent"] omninix.roles;
+```
+
+Everything else under `lib.omninix` is internal: the builders behind
+`flakeModules.default`, which may change at any time.
 
 ## Flake outputs
 
@@ -236,6 +184,6 @@ Under `omninix.lib.omninix`:
 | `flakeModules.default` | the flake-parts module |
 | `nixosModules.default` | the secure core and host options, without the builders ([details](#just-the-modules)) |
 | `homeModules.default` | the user options, without the builders |
-| `lib` | nixpkgs `lib` plus `lib.omninix` |
+| `lib` | nixpkgs `lib` plus `lib.omninix` ([public parts](#library-functions)) |
 | `roles`, `profiles` | the shipped roles (`impermanent`) and profiles (`developer`) |
 | `templates` | `default` (a whole config), `host`, `role`, `user`, `profile` |

@@ -565,6 +565,16 @@ in {
 
   # --- per-host system ------------------------------------------------
 
+  testHostSystemsUnknownHostThrows = {
+    expr =
+      (builtins.tryEval (builtins.attrNames (omninix.mkNixosConfigurations {
+        inherit inputs;
+        hosts.a = {};
+        hostSystems.b = "aarch64-linux";
+      }))).success;
+    expected = false;
+  };
+
   testHostSystemsOverride = {
     expr =
       (evalSystem {
