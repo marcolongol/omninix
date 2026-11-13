@@ -20,18 +20,25 @@
   #     silent override)
   #   - `hostName` and `inputs` as module arguments
   #   - OmniNix's NixOS module (modules/nixos): users and passwords
+  #   - every module in `sharedModules` (roles, always-on modules)
   #   - with a home-manager input, a home for every active user, built from
-  #     their file in `users` ({ name = module; }) when they have one
+  #     `sharedHomeModules` (profiles, always-on modules) and their file in
+  #     `users` ({ name = module; }) when they have one
   #
-  # Type: { inputs, hosts, users ? AttrSet, defaultSystem ? String, hostSystems ? AttrSet } -> AttrSet
+  # Type: { inputs, hosts, users ? AttrSet, sharedModules ? [Module],
+  #         sharedHomeModules ? [Module], defaultSystem ? String,
+  #         hostSystems ? AttrSet } -> AttrSet
   mkNixosConfigurations = {
     inputs,
     hosts,
     users ? {},
+    sharedModules ? [],
+    sharedHomeModules ? [],
     defaultSystem ? "x86_64-linux",
     hostSystems ? {},
   }: let
     unknown = unknownNames hosts hostSystems;
+    homes = {inherit users sharedHomeModules;};
 
     # The caller's nixpkgs builds the system, not ours: hosts must follow the
     # consumer's pin.
@@ -47,13 +54,14 @@
               nixpkgs.hostPlatform = lib.mkDefault (hostSystems.${hostName} or defaultSystem);
             }
           ]
+          ++ sharedModules
           ++ lib.optional (inputs ? home-manager)
-          (lib.modules.importApply ../modules/nixos/home-manager.nix {homeModules = lib.omninix.userHomeModules users;});
+          (lib.modules.importApply ../modules/nixos/home-manager.nix {homeModules = lib.omninix.userHomeModules homes;});
       };
   in
     if unknown != []
     then throw "OmniNix: hostSystems names unknown host(s): ${toString unknown}"
-    else lib.omninix.withHomeManager inputs users (lib.mapAttrs mkHost hosts);
+    else lib.omninix.withHomeManager inputs homes (lib.mapAttrs mkHost hosts);
 in {
   inherit unknownNames mkNixosConfigurations;
 }
