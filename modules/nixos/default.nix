@@ -10,8 +10,7 @@
   ...
 }: let
   cfg = config.omninix;
-
-  activeUsers = lib.attrNames (lib.filterAttrs (_: u: u.enable) cfg.hostUsers);
+  inherit (cfg) activeUsers;
 
   # Does the user have a password, by any of NixOS' five options? This reads
   # the final option values (whatever set them), so a mkForce null still
@@ -25,34 +24,20 @@
   usersWithoutPassword = lib.filter (name: !(hasPassword name)) activeUsers;
   bootstrapping = cfg.allowInsecureBootstrap && usersWithoutPassword != [];
 in {
+  # hostUsers.<name>.enable and activeUsers, shared with darwin hosts.
+  imports = [../shared/host-users.nix];
+
   options.omninix = {
+    # NixOS adds groups to each hostUsers entry. Declaring the same submodule
+    # option again merges with the shared declaration.
     hostUsers = lib.mkOption {
       type = lib.types.attrsOf (lib.types.submodule {
-        options = {
-          enable = lib.mkEnableOption "this user on this host";
-          extraGroups = lib.mkOption {
-            type = lib.types.listOf lib.types.str;
-            default = [];
-            description = "Groups for this user on top of omninix.defaultUserGroups. Grant privileged groups (wheel, docker) here, per user.";
-          };
+        options.extraGroups = lib.mkOption {
+          type = lib.types.listOf lib.types.str;
+          default = [];
+          description = "Groups for this user on top of omninix.defaultUserGroups. Grant privileged groups (wheel, docker) here, per user.";
         };
       });
-      default = {};
-      example = {
-        alice = {
-          enable = true;
-          extraGroups = ["wheel"];
-        };
-      };
-      description = "Users to enable on this host.";
-    };
-
-    activeUsers = lib.mkOption {
-      type = lib.types.listOf lib.types.str;
-      readOnly = true;
-      default = activeUsers;
-      defaultText = lib.literalExpression "names of the enabled omninix.hostUsers";
-      description = "Names of the users enabled on this host. Read-only; use it instead of filtering omninix.hostUsers again.";
     };
 
     defaultUserGroups = lib.mkOption {

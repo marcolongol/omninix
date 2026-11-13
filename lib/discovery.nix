@@ -47,6 +47,26 @@
     if scan.clashes != []
     then throw "OmniNix: ${toString dir} has both a file and a directory named: ${toString scan.clashes}"
     else scan.pieces;
+
+  # Roles for each platform. A role directory may hold a NixOS half
+  # (default.nix), a darwin half (darwin.nix), or both; a role file is NixOS
+  # only. Discover roles with markers ["default.nix" "darwin.nix"] so
+  # darwin-only directories are found.
+  #
+  # Type: AttrSet -> { nixos :: AttrSet; darwin :: AttrSet; }
+  #
+  # Example:
+  #   splitRoles { docker = ./roles/docker.nix; desktop = ./roles/desktop; }
+  #   => { nixos = { docker = ./roles/docker.nix; desktop = ./roles/desktop; };
+  #        darwin = { desktop = ./roles/desktop/darwin.nix; }; }
+  #   (when roles/desktop has both halves)
+  splitRoles = roles: let
+    isDir = path: builtins.readFileType path == "directory";
+    has = file: path: isDir path && builtins.pathExists (path + "/${file}");
+  in {
+    nixos = lib.filterAttrs (_: path: !(isDir path) || has "default.nix" path) roles;
+    darwin = lib.mapAttrs (_: path: path + "/darwin.nix") (lib.filterAttrs (_: has "darwin.nix") roles);
+  };
 in {
-  inherit scanNixFiles discoverNixFiles;
+  inherit scanNixFiles discoverNixFiles splitRoles;
 }

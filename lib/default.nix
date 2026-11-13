@@ -8,7 +8,7 @@ inputs.nixpkgs.lib.extend (final: _: {
   omninix =
     (import ./discovery.nix {lib = final;})
     // (import ./names.nix {lib = final;})
-    // (import ./nixos.nix {lib = final;})
+    // (import ./hosts.nix {lib = final;})
     // (import ./home.nix {lib = final;})
     // (import ./secrets.nix {lib = final;})
     // (import ./packages.nix {lib = final;});

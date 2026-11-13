@@ -1,10 +1,15 @@
-# Home Manager users: every active user gets a home.
+# Home Manager users, on NixOS and nix-darwin hosts: every active user gets
+# a home.
 #
-# The builder applies this with importApply, passing `homeModules`: a
-# function from a user's name to the modules of their home (lib/home.nix's
-# userHomeModules, shared with standalone homes). It arrives as a plain
-# function argument instead of being smuggled through specialArgs.
-{homeModules}: {
+# The builder applies this with importApply, passing:
+#   - homeManagerModule: Home Manager's NixOS or darwin module
+#   - homeModules: a function from a user's name to the modules of their
+#     home (lib/home.nix's userHomeModules, shared with standalone homes)
+# They arrive as plain function arguments instead of through specialArgs.
+{
+  homeManagerModule,
+  homeModules,
+}: {
   config,
   lib,
   inputs,
@@ -12,7 +17,7 @@
 }: let
   inherit (config.omninix) activeUsers;
 in {
-  imports = [inputs.home-manager.nixosModules.home-manager];
+  imports = [homeManagerModule];
 
   config = lib.mkIf (activeUsers != []) {
     home-manager = {

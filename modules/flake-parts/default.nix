@@ -12,17 +12,29 @@
   cfg = config.omninix;
 
   # A directory's pieces, or {} when it isn't set.
-  discover = dir:
+  discoverWith = markers: dir:
     if dir == null
     then {}
-    else omninixLib.discoverNixFiles ["default.nix"] dir;
+    else omninixLib.discoverNixFiles markers dir;
+  discover = discoverWith ["default.nix"];
 
   hosts = discover cfg.hostsDir;
   users = discover cfg.usersDir;
-  roles = discover cfg.rolesDir;
+  # A role directory may hold only a darwin half.
+  roles = discoverWith ["default.nix" "darwin.nix"] cfg.rolesDir;
+  roleHalves = omninixLib.splitRoles roles;
   profiles = discover cfg.profilesDir;
   nixosModules = discover cfg.nixosModulesDir;
+  darwinModules = discover cfg.darwinModulesDir;
   homeModules = discover cfg.homeModulesDir;
+
+  # A host is a Mac when its system is darwin. Each builder sees only its
+  # own hosts' entries in the per-host maps; typos are caught across all
+  # hosts first (see config.flake).
+  isDarwin = name: lib.hasSuffix "-darwin" (cfg.hostSystems.${name} or cfg.defaultSystem);
+  darwinHosts = lib.filterAttrs (name: _: isDarwin name) hosts;
+  nixosHosts = lib.filterAttrs (name: _: !(isDarwin name)) hosts;
+  onlyFor = someHosts: lib.filterAttrs (name: _: someHosts ? ${name});
   packages = discover cfg.packagesDir;
 
   # One package set everywhere: the packages, then overlaysDir in name order.
@@ -36,10 +48,19 @@
     inherit (cfg) allowUnfree;
   };
 
-  # Every host imports the roles and the always-on NixOS modules; every home
-  # the profiles and the always-on home modules.
-  sharedModules = lib.attrValues roles ++ lib.attrValues nixosModules;
+  # Every host imports its platform's role halves and always-on modules;
+  # every home the profiles and the always-on home modules.
   sharedHomeModules = lib.attrValues profiles ++ lib.attrValues homeModules;
+
+  # What both builders get.
+  hostArgs = someHosts: {
+    inherit inputs users sharedHomeModules;
+    inherit (cfg) defaultSystem secretsPath allowUnfree;
+    inherit (nixpkgsArgs) overlays;
+    hosts = someHosts;
+    hostSystems = onlyFor someHosts cfg.hostSystems;
+    hostInputs = onlyFor someHosts cfg.hostInputs;
+  };
 
   dirOption = description:
     lib.mkOption {
@@ -67,11 +88,12 @@
     };
 in {
   options.omninix = {
-    hostsDir = dirOption "Hosts: each `<name>.nix` or `<name>/default.nix` becomes nixosConfigurations.<name>.";
+    hostsDir = dirOption "Hosts: each `<name>.nix` or `<name>/default.nix` becomes nixosConfigurations.<name>, or darwinConfigurations.<name> when its system (hostSystems) is darwin.";
     usersDir = dirOption "Users (Home Manager modules): the home of `<name>` on every host enabling them, and homeConfigurations.<name>.";
-    rolesDir = dirOption "Roles: NixOS modules every host imports, each off until a host sets roles.<name>.enable. Exported as `roles`.";
+    rolesDir = dirOption "Roles: modules every host imports, each off until a host sets roles.<name>.enable. A file, or a directory's default.nix, is for NixOS hosts; a directory's darwin.nix is for Macs. Exported as `roles`.";
     profilesDir = dirOption "Profiles: Home Manager modules every home imports, each off until a user sets profiles.<name>.enable. Exported as `profiles`.";
     nixosModulesDir = dirOption "Always-on NixOS modules every host imports. Exported as `nixosModules`.";
+    darwinModulesDir = dirOption "Always-on nix-darwin modules every Mac imports. Exported as `darwinModules`.";
     homeModulesDir = dirOption "Always-on Home Manager modules every home imports. Exported as `homeModules`.";
     packagesDir = dirOption "Packages, one `callPackage` file each (a package asking for `inputs` gets the flake's): pkgs.<name> on every host and home, packages.<system>.<name>, and the shareable overlays.packages.";
     overlaysDir = dirOption "Overlays, one per file, applied in name order after the packages (so they can override them) on every host and home and in perSystem pkgs.";
@@ -95,11 +117,10 @@ in {
 
   config.flake = lib.mkMerge [
     {
-      nixosConfigurations = omninixLib.mkNixosConfigurations {
-        inherit inputs hosts users sharedModules sharedHomeModules;
-        inherit (cfg) defaultSystem hostSystems hostInputs secretsPath;
-        inherit (nixpkgsArgs) overlays allowUnfree;
-      };
+      nixosConfigurations =
+        omninixLib.withKnownNames "host" hosts {inherit (cfg) hostSystems hostInputs;}
+        (omninixLib.mkNixosConfigurations (hostArgs nixosHosts
+            // {sharedModules = lib.attrValues roleHalves.nixos ++ lib.attrValues nixosModules;}));
 
       inherit roles profiles;
 
@@ -118,6 +139,13 @@ in {
         inherit (nixpkgsArgs) overlays allowUnfree;
       };
     })
+    (lib.mkIf (darwinHosts != {}) {
+      darwinConfigurations =
+        omninixLib.withKnownNames "host" hosts {inherit (cfg) hostSystems hostInputs;}
+        (omninixLib.mkDarwinConfigurations (hostArgs darwinHosts
+            // {sharedModules = lib.attrValues roleHalves.darwin ++ lib.attrValues darwinModules;}));
+    })
+    (lib.mkIf (darwinModules != {}) {inherit darwinModules;})
     (lib.mkIf (homeModules != {}) {inherit homeModules;})
 
     # mkDefault: a flake's own overlays.packages replaces ours.
