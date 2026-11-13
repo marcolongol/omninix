@@ -2,38 +2,25 @@
 # nixpkgs, named and placed on the right platform.
 {
   lib,
-  inputs,
+  evalHosts,
+  ...
 }: let
-  inherit (lib.omninix) mkNixosConfigurations unknownNames;
-
-  # Build `hosts` and return each host's evaluated config. Each test host is
-  # wrapped with a stateVersion, which NixOS warns about when unset.
-  configs = args:
-    lib.mapAttrs (_: host: host.config) (mkNixosConfigurations ({inherit inputs;}
-      // args
-      // {
-        hosts =
-          lib.mapAttrs (_: host: {
-            imports = [host];
-            system.stateVersion = "26.05";
-          })
-          args.hosts;
-      }));
+  inherit (lib.omninix) unknownNames;
 in {
   # The attribute name is the hostname unless the host says otherwise.
   testHostNameDefaultsToName = {
-    expr = (configs {hosts.laptop = {};}).laptop.networking.hostName;
+    expr = (evalHosts {hosts.laptop = {};}).laptop.networking.hostName;
     expected = "laptop";
   };
 
   testHostCanOverrideHostName = {
-    expr = (configs {hosts.laptop = {networking.hostName = "work-laptop";};}).laptop.networking.hostName;
+    expr = (evalHosts {hosts.laptop = {networking.hostName = "work-laptop";};}).laptop.networking.hostName;
     expected = "work-laptop";
   };
 
   # Platform: defaultSystem, unless hostSystems names the host.
   testPlatforms = {
-    expr = lib.mapAttrs (_: c: c.nixpkgs.hostPlatform.system) (configs {
+    expr = lib.mapAttrs (_: c: c.nixpkgs.hostPlatform.system) (evalHosts {
       hosts = {
         laptop = {};
         pi = {};
@@ -51,7 +38,7 @@ in {
   testPlatformMismatchThrows = {
     expr =
       (builtins.tryEval
-        (configs {hosts.pi = {nixpkgs.hostPlatform = lib.mkDefault "aarch64-linux";};}).pi.nixpkgs.hostPlatform.system)
+        (evalHosts {hosts.pi = {nixpkgs.hostPlatform = lib.mkDefault "aarch64-linux";};}).pi.nixpkgs.hostPlatform.system)
       .success;
     expected = false;
   };
@@ -59,7 +46,7 @@ in {
   # Host modules receive their own name and the flake inputs as arguments.
   testModuleArguments = {
     expr =
-      (configs {
+      (evalHosts {
         hosts.laptop = {
           hostName,
           inputs,
@@ -87,7 +74,7 @@ in {
 
   testUnknownHostSystemThrows = {
     expr =
-      (builtins.tryEval (configs {
+      (builtins.tryEval (evalHosts {
         hosts.laptop = {};
         hostSystems.lpatop = "aarch64-linux";
       }))

@@ -19,6 +19,7 @@
   #     so a hardware-configuration.nix that disagrees is a conflict, not a
   #     silent override)
   #   - `hostName` and `inputs` as module arguments
+  #   - OmniNix's NixOS module (modules/nixos): users and passwords
   #
   # Type: { inputs, hosts, defaultSystem ? String, hostSystems ? AttrSet } -> AttrSet
   mkNixosConfigurations = {
@@ -36,6 +37,7 @@
         specialArgs = {inherit inputs hostName;};
         modules = [
           host
+          ../modules/nixos
           {
             networking.hostName = lib.mkDefault hostName;
             nixpkgs.hostPlatform = lib.mkDefault (hostSystems.${hostName} or defaultSystem);

@@ -1,7 +1,7 @@
 # The eval test suites, one flake check each.
 #
 # Every entry of suites/ (a `<name>.nix` file or a `<name>/` directory with
-# default.nix) is a suite: a function taking { lib, inputs, ... } and
+# default.nix) is a suite: a function taking { lib, inputs, evalHosts, ... } and
 # returning { testFoo = { expr = …; expected = …; }; … }. It becomes
 # checks.<system>.<name>, so adding a suite needs no wiring.
 {
@@ -9,6 +9,23 @@
   lib,
   inputs,
 }: let
+  # Build test hosts with mkNixosConfigurations and return each one's
+  # evaluated config. Each host is wrapped with a stateVersion, which NixOS
+  # warns about when unset.
+  #
+  # Example: (evalHosts {hosts.laptop = {};}).laptop.networking.hostName
+  evalHosts = args:
+    lib.mapAttrs (_: host: host.config) (lib.omninix.mkNixosConfigurations ({inherit inputs;}
+      // args
+      // {
+        hosts =
+          lib.mapAttrs (_: host: {
+            imports = [host];
+            system.stateVersion = "26.05";
+          })
+          args.hosts;
+      }));
+
   # Turn a test set into a derivation that builds if every case passes,
   # printing each failure otherwise.
   mkSuite = name: tests: let
@@ -33,5 +50,5 @@
       fi
     '';
 in
-  lib.mapAttrs (name: suite: mkSuite name (import suite {inherit lib inputs;}))
+  lib.mapAttrs (name: suite: mkSuite name (import suite {inherit lib inputs evalHosts;}))
   (lib.omninix.discoverNixFiles ["default.nix"] ./suites)
