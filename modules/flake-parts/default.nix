@@ -43,6 +43,16 @@
       example = {pi = "aarch64-linux";};
       description = "Per-${what} system, overriding defaultSystem. Unknown names are an error.";
     };
+
+  inputsOption = what:
+    lib.mkOption {
+      # lazyAttrsOf raw: inputs are passed through untouched, and only read
+      # when used.
+      type = lib.types.attrsOf (lib.types.lazyAttrsOf lib.types.raw);
+      default = {};
+      example = lib.literalExpression "{ pi.nixpkgs = inputs.nixpkgs-unstable; }";
+      description = "Per-${what} flake inputs, merged over the flake's own for that ${what} only (its nixpkgs, Home Manager and `inputs` argument). Unknown names are an error.";
+    };
 in {
   options.omninix = {
     hostsDir = dirOption "Hosts: each `<name>.nix` or `<name>/default.nix` becomes nixosConfigurations.<name>.";
@@ -59,13 +69,15 @@ in {
     };
     hostSystems = systemsOption "host";
     userSystems = systemsOption "user";
+    hostInputs = inputsOption "host";
+    userInputs = inputsOption "user";
   };
 
   config.flake = lib.mkMerge [
     {
       nixosConfigurations = omninixLib.mkNixosConfigurations {
         inherit inputs hosts users sharedModules sharedHomeModules;
-        inherit (cfg) defaultSystem hostSystems;
+        inherit (cfg) defaultSystem hostSystems hostInputs;
       };
 
       inherit roles profiles;
@@ -81,7 +93,7 @@ in {
     (lib.mkIf (users != {}) {
       homeConfigurations = omninixLib.mkHomeConfigurations {
         inherit inputs users sharedHomeModules;
-        inherit (cfg) defaultSystem userSystems;
+        inherit (cfg) defaultSystem userSystems userInputs;
       };
     })
     (lib.mkIf (homeModules != {}) {inherit homeModules;})

@@ -41,24 +41,27 @@
   #     /Users/<name> on darwin, /home/<name> otherwise (all mkDefault)
   #   - pkgs for userSystems.<name> or defaultSystem
   #   - `inputs` as a module argument
+  # all from the flake's inputs with userInputs.<name> on top.
   #
-  # Type: { inputs, users, sharedHomeModules ? [Module], defaultSystem ? String, userSystems ? AttrSet } -> AttrSet
+  # Type: { inputs, users, sharedHomeModules ? [Module], defaultSystem ? String, userSystems ? AttrSet,
+  #         userInputs ? AttrSet } -> AttrSet
   mkHomeConfigurations = {
     inputs,
     users,
     sharedHomeModules ? [],
     defaultSystem ? "x86_64-linux",
     userSystems ? {},
+    userInputs ? {},
   }: let
     homes = {inherit users sharedHomeModules;};
-    unknown = lib.omninix.unknownNames users userSystems;
 
     mkHome = name: _: let
       system = userSystems.${name} or defaultSystem;
+      inputs' = inputs // (userInputs.${name} or {});
     in
-      inputs.home-manager.lib.homeManagerConfiguration {
-        pkgs = inputs.nixpkgs.legacyPackages.${system};
-        extraSpecialArgs = {inherit inputs;};
+      inputs'.home-manager.lib.homeManagerConfiguration {
+        pkgs = inputs'.nixpkgs.legacyPackages.${system};
+        extraSpecialArgs = {inputs = inputs';};
         modules =
           userHomeModules homes name
           ++ [
@@ -77,9 +80,8 @@
           ];
       };
   in
-    if unknown != []
-    then throw "OmniNix: userSystems names unknown user(s): ${toString unknown}"
-    else withHomeManager inputs homes (lib.mapAttrs mkHome users);
+    lib.omninix.withKnownNames "user" users {inherit userSystems userInputs;}
+    (withHomeManager inputs homes (lib.mapAttrs mkHome users));
 in {
   inherit userHomeModules withHomeManager mkHomeConfigurations;
 }

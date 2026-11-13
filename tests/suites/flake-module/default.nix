@@ -101,6 +101,19 @@ in {
     };
   };
 
+  # hostInputs / userInputs reach the builders: a misspelt name is caught
+  # there.
+  testInputsForwarded = {
+    expr = {
+      host = (builtins.tryEval (evalFlake {omninix.hostInputs.lpatop = {};}).nixosConfigurations).success;
+      home = (builtins.tryEval (evalFlake {omninix.userInputs.alcie = {};}).homeConfigurations).success;
+    };
+    expected = {
+      host = false;
+      home = false;
+    };
+  };
+
   # A flake that sets no directories gets no fleet, and no stray outputs.
   testNothingConfigured = {
     expr = let
