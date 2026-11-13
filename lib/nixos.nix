@@ -20,11 +20,14 @@
   #     silent override)
   #   - `hostName` and `inputs` as module arguments
   #   - OmniNix's NixOS module (modules/nixos): users and passwords
+  #   - with a home-manager input, a home for every active user, built from
+  #     their file in `users` ({ name = module; }) when they have one
   #
-  # Type: { inputs, hosts, defaultSystem ? String, hostSystems ? AttrSet } -> AttrSet
+  # Type: { inputs, hosts, users ? AttrSet, defaultSystem ? String, hostSystems ? AttrSet } -> AttrSet
   mkNixosConfigurations = {
     inputs,
     hosts,
+    users ? {},
     defaultSystem ? "x86_64-linux",
     hostSystems ? {},
   }: let
@@ -35,18 +38,24 @@
     mkHost = hostName: host:
       inputs.nixpkgs.lib.nixosSystem {
         specialArgs = {inherit inputs hostName;};
-        modules = [
-          host
-          ../modules/nixos
-          {
-            networking.hostName = lib.mkDefault hostName;
-            nixpkgs.hostPlatform = lib.mkDefault (hostSystems.${hostName} or defaultSystem);
-          }
-        ];
+        modules =
+          [
+            host
+            ../modules/nixos
+            {
+              networking.hostName = lib.mkDefault hostName;
+              nixpkgs.hostPlatform = lib.mkDefault (hostSystems.${hostName} or defaultSystem);
+            }
+          ]
+          ++ lib.optional (inputs ? home-manager)
+          (lib.modules.importApply ../modules/nixos/home-manager.nix {inherit users;});
       };
   in
     if unknown != []
     then throw "OmniNix: hostSystems names unknown host(s): ${toString unknown}"
+    # User files would be silently dropped without Home Manager to apply them.
+    else if users != {} && !(inputs ? home-manager)
+    then throw "OmniNix: user files (${toString (lib.attrNames users)}) need a home-manager flake input"
     else lib.mapAttrs mkHost hosts;
 in {
   inherit unknownNames mkNixosConfigurations;
