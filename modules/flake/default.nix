@@ -2,12 +2,14 @@
   lib = import ../../lib {inherit inputs;};
 in {
   flake = {
-    inherit lib;
+    # Only our namespace, not the whole extended lib: that would hand
+    # consumers a copy of nixpkgs' lib on our pin instead of theirs (nixpkgs
+    # warns against extending lib for exactly this reason).
+    lib = lib.omninix;
   };
-  perSystem = {pkgs, ...}: let
-    testLib = import ../../tests/lib.nix {inherit pkgs lib;};
-  in {
+  perSystem = {pkgs, ...}: {
     formatter = pkgs.alejandra;
-    checks.harness = testLib.mkSuite "harness" (import ../../tests/harness.nix);
+    # One check per suite in tests/suites.
+    checks = import ../../tests {inherit pkgs lib inputs;};
   };
 }
