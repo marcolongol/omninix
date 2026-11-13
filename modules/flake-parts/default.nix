@@ -61,6 +61,7 @@ in {
     profilesDir = dirOption "Profiles: Home Manager modules every home imports, each off until a user sets profiles.<name>.enable. Exported as `profiles`.";
     nixosModulesDir = dirOption "Always-on NixOS modules every host imports. Exported as `nixosModules`.";
     homeModulesDir = dirOption "Always-on Home Manager modules every home imports. Exported as `homeModules`.";
+    secretsPath = dirOption "sops-nix secrets: `users/<user>.yaml` (key `hashed-password`) is that user's password and their default sops file in Home Manager; `<host>.yaml` is the host's default sops file. Needs a sops-nix input.";
 
     defaultSystem = lib.mkOption {
       type = lib.types.str;
@@ -77,7 +78,7 @@ in {
     {
       nixosConfigurations = omninixLib.mkNixosConfigurations {
         inherit inputs hosts users sharedModules sharedHomeModules;
-        inherit (cfg) defaultSystem hostSystems hostInputs;
+        inherit (cfg) defaultSystem hostSystems hostInputs secretsPath;
       };
 
       inherit roles profiles;
@@ -93,7 +94,7 @@ in {
     (lib.mkIf (users != {}) {
       homeConfigurations = omninixLib.mkHomeConfigurations {
         inherit inputs users sharedHomeModules;
-        inherit (cfg) defaultSystem userSystems userInputs;
+        inherit (cfg) defaultSystem userSystems userInputs secretsPath;
       };
     })
     (lib.mkIf (homeModules != {}) {inherit homeModules;})

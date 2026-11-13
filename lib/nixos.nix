@@ -13,13 +13,15 @@
   #     for one host); the host is built from those inputs throughout
   #   - OmniNix's NixOS module (modules/nixos): users and passwords
   #   - every module in `sharedModules` (roles, always-on modules)
+  #   - with a sops-nix input, sops-nix, wired by convention to secretsPath
+  #     (lib/secrets.nix)
   #   - with a home-manager input, a home for every active user, built from
   #     `sharedHomeModules` (profiles, always-on modules) and their file in
   #     `users` ({ name = module; }) when they have one
   #
   # Type: { inputs, hosts, users ? AttrSet, sharedModules ? [Module],
   #         sharedHomeModules ? [Module], defaultSystem ? String,
-  #         hostSystems ? AttrSet, hostInputs ? AttrSet } -> AttrSet
+  #         hostSystems ? AttrSet, hostInputs ? AttrSet, secretsPath ? Path } -> AttrSet
   mkNixosConfigurations = {
     inputs,
     hosts,
@@ -29,8 +31,9 @@
     defaultSystem ? "x86_64-linux",
     hostSystems ? {},
     hostInputs ? {},
+    secretsPath ? null,
   }: let
-    homes = {inherit users sharedHomeModules;};
+    homes = {inherit users sharedHomeModules secretsPath;};
 
     # The caller's nixpkgs (or this host's override) builds the system, not
     # ours: hosts must follow the consumer's pin.
@@ -52,12 +55,15 @@
             }
           ]
           ++ sharedModules
+          ++ lib.optional (inputs' ? sops-nix)
+          (lib.modules.importApply ../modules/nixos/secrets.nix {secretFile = lib.omninix.secretFile secretsPath;})
           ++ lib.optional (inputs' ? home-manager)
           (lib.modules.importApply ../modules/nixos/home-manager.nix {homeModules = lib.omninix.userHomeModules homes;});
       };
   in
     lib.omninix.withKnownNames "host" hosts {inherit hostSystems hostInputs;}
-    (lib.omninix.withHomeManager inputs homes (lib.mapAttrs mkHost hosts));
+    (lib.omninix.withSops inputs secretsPath
+      (lib.omninix.withHomeManager inputs homes (lib.mapAttrs mkHost hosts)));
 in {
   inherit mkNixosConfigurations;
 }

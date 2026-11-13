@@ -91,7 +91,8 @@ in {
         message = ''
           OmniNix: no password for active user(s): ${toString usersWithoutPassword}
 
-          Set one with users.users.<name>.hashedPasswordFile (or hashedPassword).
+          Set one with an encrypted `hashed-password` in <secretsPath>/users/<name>.yaml,
+          or with users.users.<name>.hashedPasswordFile (or hashedPassword).
           For a first install only, omninix.allowInsecureBootstrap = true builds
           with passwordless login instead.
         '';
