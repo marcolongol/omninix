@@ -1,9 +1,10 @@
-# Home Manager users: every active user gets a home, built from their file
-# in `users` when they have one.
+# Home Manager users: every active user gets a home.
 #
-# The builder applies this with importApply, so `users` arrives as a plain
+# The builder applies this with importApply, passing `homeModules`: a
+# function from a user's name to the modules of their home (lib/home.nix's
+# userHomeModules, shared with standalone homes). It arrives as a plain
 # function argument instead of being smuggled through specialArgs.
-{users}: {
+{homeModules}: {
   config,
   lib,
   inputs,
@@ -23,12 +24,7 @@ in {
       # User files get the flake inputs, like host files do.
       extraSpecialArgs = {inherit inputs;};
 
-      users = lib.genAttrs activeUsers (name: {
-        imports = lib.optional (users ? ${name}) users.${name};
-        # Frozen: never bump this with the nixpkgs pin, or users who don't
-        # set it would silently move to a newer stateVersion.
-        home.stateVersion = lib.mkDefault "26.05";
-      });
+      users = lib.genAttrs activeUsers (name: {imports = homeModules name;});
     };
   };
 }

@@ -48,15 +48,12 @@
             }
           ]
           ++ lib.optional (inputs ? home-manager)
-          (lib.modules.importApply ../modules/nixos/home-manager.nix {inherit users;});
+          (lib.modules.importApply ../modules/nixos/home-manager.nix {homeModules = lib.omninix.userHomeModules users;});
       };
   in
     if unknown != []
     then throw "OmniNix: hostSystems names unknown host(s): ${toString unknown}"
-    # User files would be silently dropped without Home Manager to apply them.
-    else if users != {} && !(inputs ? home-manager)
-    then throw "OmniNix: user files (${toString (lib.attrNames users)}) need a home-manager flake input"
-    else lib.mapAttrs mkHost hosts;
+    else lib.omninix.withHomeManager inputs users (lib.mapAttrs mkHost hosts);
 in {
   inherit unknownNames mkNixosConfigurations;
 }
