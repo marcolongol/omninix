@@ -23,6 +23,18 @@
   profiles = discover cfg.profilesDir;
   nixosModules = discover cfg.nixosModulesDir;
   homeModules = discover cfg.homeModulesDir;
+  packages = discover cfg.packagesDir;
+
+  # One package set everywhere: the packages, then overlaysDir in name order.
+  overlays = omninixLib.allOverlays {
+    inherit inputs packages;
+    overlays = discover cfg.overlaysDir;
+  };
+  changesPkgs = overlays != [] || cfg.allowUnfree;
+  nixpkgsArgs = {
+    inherit overlays;
+    inherit (cfg) allowUnfree;
+  };
 
   # Every host imports the roles and the always-on NixOS modules; every home
   # the profiles and the always-on home modules.
@@ -61,6 +73,13 @@ in {
     profilesDir = dirOption "Profiles: Home Manager modules every home imports, each off until a user sets profiles.<name>.enable. Exported as `profiles`.";
     nixosModulesDir = dirOption "Always-on NixOS modules every host imports. Exported as `nixosModules`.";
     homeModulesDir = dirOption "Always-on Home Manager modules every home imports. Exported as `homeModules`.";
+    packagesDir = dirOption "Packages, one `callPackage` file each (a package asking for `inputs` gets the flake's): pkgs.<name> on every host and home, packages.<system>.<name>, and the shareable overlays.packages.";
+    overlaysDir = dirOption "Overlays, one per file, applied in name order after the packages (so they can override them) on every host and home and in perSystem pkgs.";
+    allowUnfree = lib.mkOption {
+      type = lib.types.bool;
+      default = false;
+      description = "Allow unfree packages on every host and home and in perSystem pkgs. A single host can set nixpkgs.config.allowUnfree itself instead.";
+    };
     secretsPath = dirOption "sops-nix secrets: `users/<user>.yaml` (key `hashed-password`) is that user's password and their default sops file in Home Manager; `<host>.yaml` is the host's default sops file. Needs a sops-nix input.";
 
     defaultSystem = lib.mkOption {
@@ -79,6 +98,7 @@ in {
       nixosConfigurations = omninixLib.mkNixosConfigurations {
         inherit inputs hosts users sharedModules sharedHomeModules;
         inherit (cfg) defaultSystem hostSystems hostInputs secretsPath;
+        inherit (nixpkgsArgs) overlays allowUnfree;
       };
 
       inherit roles profiles;
@@ -95,8 +115,29 @@ in {
       homeConfigurations = omninixLib.mkHomeConfigurations {
         inherit inputs users sharedHomeModules;
         inherit (cfg) defaultSystem userSystems userInputs secretsPath;
+        inherit (nixpkgsArgs) overlays allowUnfree;
       };
     })
     (lib.mkIf (homeModules != {}) {inherit homeModules;})
+
+    # mkDefault: a flake's own overlays.packages replaces ours.
+    (lib.mkIf (packages != {}) {
+      overlays.packages = lib.mkDefault (omninixLib.exportOverlay packages);
+    })
   ];
+
+  # perSystem gets the same package set as hosts and homes, so
+  # packages.<system> matches what they install. Only when something
+  # changes it, and mkDefault, so a flake can still set its own pkgs.
+  config.perSystem = {system, ...}: let
+    pkgs = import inputs.nixpkgs {
+      inherit system;
+      inherit (nixpkgsArgs) overlays;
+      config.allowUnfree = cfg.allowUnfree;
+    };
+  in
+    lib.mkIf changesPkgs {
+      _module.args.pkgs = lib.mkDefault pkgs;
+      packages = lib.mapAttrs (_: lib.mkDefault) (omninixLib.packagesFor packages pkgs);
+    };
 }

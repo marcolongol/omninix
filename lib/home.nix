@@ -48,12 +48,14 @@
   #     stateVersion default and sops-nix)
   #   - home.username = its name, and home.homeDirectory = /root for root,
   #     /Users/<name> on darwin, /home/<name> otherwise (all mkDefault)
-  #   - pkgs for userSystems.<name> or defaultSystem
+  #   - pkgs for userSystems.<name> or defaultSystem, with `overlays` and
+  #     allowUnfree applied by Home Manager's nixpkgs options
   #   - `inputs` as a module argument
   # all from the flake's inputs with userInputs.<name> on top.
   #
   # Type: { inputs, users, sharedHomeModules ? [Module], defaultSystem ? String, userSystems ? AttrSet,
-  #         userInputs ? AttrSet, secretsPath ? Path } -> AttrSet
+  #         userInputs ? AttrSet, secretsPath ? Path, overlays ? [Overlay],
+  #         allowUnfree ? Bool } -> AttrSet
   mkHomeConfigurations = {
     inputs,
     users,
@@ -62,6 +64,8 @@
     userSystems ? {},
     userInputs ? {},
     secretsPath ? null,
+    overlays ? [],
+    allowUnfree ? false,
   }: let
     homes = {inherit users sharedHomeModules secretsPath;};
 
@@ -75,6 +79,8 @@
         modules =
           userHomeModules homes name
           ++ [
+            # Host homes share the host's pkgs instead (useGlobalPkgs).
+            (lib.omninix.nixpkgsModule {inherit overlays allowUnfree;})
             {
               # On a host, NixOS supplies these from the user account; here
               # nothing does.

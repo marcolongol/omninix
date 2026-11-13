@@ -13,6 +13,7 @@
   #     for one host); the host is built from those inputs throughout
   #   - OmniNix's NixOS module (modules/nixos): users and passwords
   #   - every module in `sharedModules` (roles, always-on modules)
+  #   - nixpkgs.overlays = overlays, and allowUnfree when true
   #   - with a sops-nix input, sops-nix, wired by convention to secretsPath
   #     (lib/secrets.nix)
   #   - with a home-manager input, a home for every active user, built from
@@ -21,7 +22,8 @@
   #
   # Type: { inputs, hosts, users ? AttrSet, sharedModules ? [Module],
   #         sharedHomeModules ? [Module], defaultSystem ? String,
-  #         hostSystems ? AttrSet, hostInputs ? AttrSet, secretsPath ? Path } -> AttrSet
+  #         hostSystems ? AttrSet, hostInputs ? AttrSet, secretsPath ? Path,
+  #         overlays ? [Overlay], allowUnfree ? Bool } -> AttrSet
   mkNixosConfigurations = {
     inputs,
     hosts,
@@ -32,6 +34,8 @@
     hostSystems ? {},
     hostInputs ? {},
     secretsPath ? null,
+    overlays ? [],
+    allowUnfree ? false,
   }: let
     homes = {inherit users sharedHomeModules secretsPath;};
 
@@ -53,6 +57,7 @@
               networking.hostName = lib.mkDefault hostName;
               nixpkgs.hostPlatform = lib.mkDefault (hostSystems.${hostName} or defaultSystem);
             }
+            (lib.omninix.nixpkgsModule {inherit overlays allowUnfree;})
           ]
           ++ sharedModules
           ++ lib.optional (inputs' ? sops-nix)
