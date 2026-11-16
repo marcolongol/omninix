@@ -23,6 +23,10 @@
         home.stateVersion = lib.mkDefault "26.05";
       }
 
+      # omninix.requirements, as on hosts, and omninix.persistence.
+      ../modules/shared/requirements.nix
+      ../modules/home/persistence.nix
+
       # `inputs` is a special argument here, so imports may depend on it.
       ({inputs, ...}: {imports = lib.optional (inputs ? sops-nix) inputs.sops-nix.homeManagerModules.sops;})
     ]

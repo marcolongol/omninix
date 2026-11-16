@@ -5,6 +5,9 @@
   lib,
   ...
 }: {
+  # Both platforms also get omninix.requirements.
+  imports = [./requirements.nix];
+
   options.omninix = {
     hostUsers = lib.mkOption {
       type = lib.types.attrsOf (lib.types.submodule {

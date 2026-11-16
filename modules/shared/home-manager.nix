@@ -29,7 +29,9 @@ in {
       # User files get the flake inputs, like host files do.
       extraSpecialArgs = {inherit inputs;};
 
-      users = lib.genAttrs activeUsers (name: {imports = homeModules name;});
+      users = lib.genAttrs activeUsers (name: {
+        imports = homeModules name ++ [../home/persistence-host.nix];
+      });
     };
   };
 }

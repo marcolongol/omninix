@@ -48,10 +48,34 @@
     then throw "OmniNix: ${toString dir} has both a file and a directory named: ${toString scan.clashes}"
     else scan.pieces;
 
+  # A directory of shareable pieces (roles, profiles, modules): its own
+  # entries plus those in its `internal/` subdirectory. Both are used locally;
+  # only the former are exported. "internal" is never a piece itself, and a
+  # name in both places throws instead of one silently winning.
+  #
+  # Type: [String] -> Path -> { all :: AttrSet; exportable :: AttrSet; }
+  #
+  # Example:
+  #   roles/{desktop.nix, internal/site.nix}
+  #   discoverPieces ["default.nix"] ./roles
+  #   => { all = { desktop = …; site = …; }; exportable = { desktop = …; }; }
+  discoverPieces = markers: dir: let
+    top = removeAttrs (discoverNixFiles markers dir) ["internal"];
+    internal = discoverNixFiles markers (dir + "/internal");
+    clashes = lib.attrNames (builtins.intersectAttrs top internal);
+  in
+    if clashes != []
+    then throw "OmniNix: ${toString dir} and its internal/ both define: ${toString clashes}"
+    else {
+      all = top // internal;
+      exportable = top;
+    };
+
   # Roles for each platform. A role directory may hold a NixOS half
   # (default.nix), a darwin half (darwin.nix), or both; a role file is NixOS
-  # only. Discover roles with markers ["default.nix" "darwin.nix"] so
-  # darwin-only directories are found.
+  # only, and so is a role given as a module rather than a path (there's
+  # nothing to look inside). Discover roles with markers
+  # ["default.nix" "darwin.nix"] so darwin-only directories are found.
   #
   # Type: AttrSet -> { nixos :: AttrSet; darwin :: AttrSet; }
   #
@@ -61,12 +85,12 @@
   #        darwin = { desktop = ./roles/desktop/darwin.nix; }; }
   #   (when roles/desktop has both halves)
   splitRoles = roles: let
-    isDir = path: builtins.readFileType path == "directory";
+    isDir = role: (builtins.isPath role || builtins.isString role) && builtins.readFileType role == "directory";
     has = file: path: isDir path && builtins.pathExists (path + "/${file}");
   in {
-    nixos = lib.filterAttrs (_: path: !(isDir path) || has "default.nix" path) roles;
-    darwin = lib.mapAttrs (_: path: path + "/darwin.nix") (lib.filterAttrs (_: has "darwin.nix") roles);
+    nixos = lib.filterAttrs (_: role: !(isDir role) || has "default.nix" role) roles;
+    darwin = lib.mapAttrs (_: dir: dir + "/darwin.nix") (lib.filterAttrs (_: has "darwin.nix") roles);
   };
 in {
-  inherit scanNixFiles discoverNixFiles splitRoles;
+  inherit scanNixFiles discoverNixFiles discoverPieces splitRoles;
 }

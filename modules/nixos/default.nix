@@ -24,8 +24,11 @@
   usersWithoutPassword = lib.filter (name: !(hasPassword name)) activeUsers;
   bootstrapping = cfg.allowInsecureBootstrap && usersWithoutPassword != [];
 in {
-  # hostUsers.<name>.enable and activeUsers, shared with darwin hosts.
-  imports = [../shared/host-users.nix];
+  imports = [
+    # hostUsers.<name>.enable and activeUsers, shared with darwin hosts.
+    ../shared/host-users.nix
+    ./persistence.nix
+  ];
 
   options.omninix = {
     # NixOS adds groups to each hostUsers entry. Declaring the same submodule

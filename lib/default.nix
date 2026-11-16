@@ -11,5 +11,6 @@ inputs.nixpkgs.lib.extend (final: _: {
     // (import ./hosts.nix {lib = final;})
     // (import ./home.nix {lib = final;})
     // (import ./secrets.nix {lib = final;})
-    // (import ./packages.nix {lib = final;});
+    // (import ./packages.nix {lib = final;})
+    // (import ./sharing.nix {lib = final;});
 })

@@ -12,21 +12,46 @@
   cfg = config.omninix;
 
   # A directory's pieces, or {} when it isn't set.
-  discoverWith = markers: dir:
+  discover = dir:
     if dir == null
     then {}
-    else omninixLib.discoverNixFiles markers dir;
-  discover = discoverWith ["default.nix"];
+    else omninixLib.discoverNixFiles ["default.nix"] dir;
+
+  # A directory of shareable pieces, with its internal/: `all` is used here,
+  # `exportable` is exported.
+  discoverPiecesWith = markers: dir:
+    if dir == null
+    then {
+      all = {};
+      exportable = {};
+    }
+    else omninixLib.discoverPieces markers dir;
+  discoverPieces = discoverPiecesWith ["default.nix"];
 
   hosts = discover cfg.hostsDir;
   users = discover cfg.usersDir;
+
   # A role directory may hold only a darwin half.
-  roles = discoverWith ["default.nix" "darwin.nix"] cfg.rolesDir;
-  roleHalves = omninixLib.splitRoles roles;
-  profiles = discover cfg.profilesDir;
-  nixosModules = discover cfg.nixosModulesDir;
-  darwinModules = discover cfg.darwinModulesDir;
-  homeModules = discover cfg.homeModulesDir;
+  ownRoles = discoverPiecesWith ["default.nix" "darwin.nix"] cfg.rolesDir;
+  ownProfiles = discoverPieces cfg.profilesDir;
+  ownNixosModules = discoverPieces cfg.nixosModulesDir;
+  ownDarwinModules = discoverPieces cfg.darwinModulesDir;
+  ownHomeModules = discoverPieces cfg.homeModulesDir;
+
+  # Ours plus the extras, ours winning a clash. Roles merge whole, by name,
+  # and only then split into halves, so a host never mixes halves from two
+  # flakes. Borrowed roles and profiles can't read our `inputs` (borrow).
+  ownRoleHalves = omninixLib.splitRoles ownRoles.all;
+  extraRoleHalves = omninixLib.splitRoles (omninixLib.newExtras "roles" ownRoles.all cfg.extraRoles);
+  borrowAll = kind: lib.mapAttrs (omninixLib.borrow kind);
+  roleHalves = {
+    nixos = ownRoleHalves.nixos // borrowAll "roles" extraRoleHalves.nixos;
+    darwin = ownRoleHalves.darwin // borrowAll "roles" extraRoleHalves.darwin;
+  };
+  profiles = omninixLib.withExtras "profiles" ownProfiles.all (borrowAll "profiles" cfg.extraProfiles);
+  nixosModules = omninixLib.withExtras "nixosModules" ownNixosModules.all cfg.extraNixosModules;
+  darwinModules = omninixLib.withExtras "darwinModules" ownDarwinModules.all cfg.extraDarwinModules;
+  homeModules = omninixLib.withExtras "homeModules" ownHomeModules.all cfg.extraHomeModules;
 
   # A host is a Mac when its system is darwin. Each builder sees only its
   # own hosts' entries in the per-host maps; typos are caught across all
@@ -77,6 +102,15 @@
       description = "Per-${what} system, overriding defaultSystem. Unknown names are an error.";
     };
 
+  # Another flake's pieces, by name: paths or modules, passed through as is.
+  extraOption = what: example:
+    lib.mkOption {
+      type = lib.types.attrsOf (lib.types.addCheck lib.types.raw (v: builtins.isPath v || builtins.isString v || builtins.isFunction v || builtins.isAttrs v));
+      default = {};
+      example = lib.literalExpression example;
+      description = "More ${what} by name, e.g. from another flake. Yours win a name clash. Used here, never exported.";
+    };
+
   inputsOption = what:
     lib.mkOption {
       # lazyAttrsOf raw: inputs are passed through untouched, and only read
@@ -113,6 +147,14 @@ in {
     userSystems = systemsOption "user";
     hostInputs = inputsOption "host";
     userInputs = inputsOption "user";
+
+    extraRoles =
+      extraOption "roles (a role given as a module, not a path, has no darwin half and reaches NixOS hosts only)"
+      "{ inherit (their-config.roles) desktop; }";
+    extraProfiles = extraOption "profiles" "{ inherit (their-config.profiles) developer; }";
+    extraNixosModules = extraOption "always-on NixOS modules" "{ disko = inputs.disko.nixosModules.disko; }";
+    extraDarwinModules = extraOption "always-on nix-darwin modules" "{ inherit (their-config.darwinModules) dock; }";
+    extraHomeModules = extraOption "always-on Home Manager modules" "{ nixievim = inputs.nixievim.homeManagerModules.default; }";
   };
 
   config.flake = lib.mkMerge [
@@ -122,12 +164,15 @@ in {
         (omninixLib.mkNixosConfigurations (hostArgs nixosHosts
             // {sharedModules = lib.attrValues roleHalves.nixos ++ lib.attrValues nixosModules;}));
 
-      inherit roles profiles;
+      # Exports: our own pieces, never internal/ or extra* (re-exporting another
+      # flake's pieces would pin them at our version).
+      roles = ownRoles.exportable;
+      profiles = ownProfiles.exportable;
 
       # mkDefault per entry: nixosModules is typed by flake-parts, and its
       # entries merge. A flake's own entry of the same name should replace
       # ours, not merge with it.
-      nixosModules = lib.mapAttrs (_: lib.mkDefault) nixosModules;
+      nixosModules = lib.mapAttrs (_: lib.mkDefault) ownNixosModules.exportable;
     }
 
     # Only when there is something to put there, so a flake without users or
@@ -145,8 +190,8 @@ in {
         (omninixLib.mkDarwinConfigurations (hostArgs darwinHosts
             // {sharedModules = lib.attrValues roleHalves.darwin ++ lib.attrValues darwinModules;}));
     })
-    (lib.mkIf (darwinModules != {}) {inherit darwinModules;})
-    (lib.mkIf (homeModules != {}) {inherit homeModules;})
+    (lib.mkIf (ownDarwinModules.exportable != {}) {darwinModules = ownDarwinModules.exportable;})
+    (lib.mkIf (ownHomeModules.exportable != {}) {homeModules = ownHomeModules.exportable;})
 
     # mkDefault: a flake's own overlays.packages replaces ours.
     (lib.mkIf (packages != {}) {

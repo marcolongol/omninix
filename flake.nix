@@ -20,6 +20,9 @@
     };
 
     # For the tests only, like home-manager.
+    impermanence.url = "github:nix-community/impermanence";
+
+    # For the tests only, like home-manager.
     sops-nix = {
       url = "github:Mic92/sops-nix";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -34,5 +37,9 @@
     flake-parts.lib.mkFlake {inherit inputs;} {
       systems = import systems;
       imports = [./modules/flake];
+
+      # OmniNix on itself: the roles it ships are exported like any
+      # consumer's.
+      omninix.rolesDir = ./roles;
     };
 }
