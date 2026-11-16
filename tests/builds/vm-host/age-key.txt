@@ -1,0 +1,5 @@
+# THROWAWAY TEST KEY. It only decrypts secrets/users/alice.yaml (password
+# "test") inside the vm-host check. It protects nothing real.
+# created: 2026-11-16T18:05:49-05:00
+# public key: age1yfpehl83fwu9tgsd4nv275u5234k00388zjffnwp8x5e509gha5qrgx65k
+AGE-SECRET-KEY-16MLJN909SMNTNF0PAHKK5S0HJM5LNTQ2RT2ERSSWYD2TUJFYWS0Q2ZG0YL

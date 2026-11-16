@@ -1,9 +1,13 @@
-# The eval test suites, one flake check each.
+# The flake checks: the eval suites, plus the builds.
 #
 # Every entry of suites/ (a `<name>.nix` file or a `<name>/` directory with
 # default.nix) is a suite: a function taking { lib, inputs, evalHosts, ... } and
 # returning { testFoo = { expr = …; expected = …; }; … }. It becomes
 # checks.<system>.<name>, so adding a suite needs no wiring.
+#
+# Every entry of builds/ is a function taking { pkgs, lib, inputs } and
+# returning { checkName = derivation; }: real builds and VM tests, which
+# return {} on systems they can't run on.
 {
   pkgs,
   lib,
@@ -49,6 +53,13 @@
         exit 1
       fi
     '';
+
+  suites =
+    lib.mapAttrs (name: suite: mkSuite name (import suite {inherit lib inputs evalHosts;}))
+    (lib.omninix.discoverNixFiles ["default.nix"] ./suites);
+
+  builds =
+    lib.concatMapAttrs (_: build: import build {inherit pkgs lib inputs;})
+    (lib.omninix.discoverNixFiles ["default.nix"] ./builds);
 in
-  lib.mapAttrs (name: suite: mkSuite name (import suite {inherit lib inputs evalHosts;}))
-  (lib.omninix.discoverNixFiles ["default.nix"] ./suites)
+  suites // builds

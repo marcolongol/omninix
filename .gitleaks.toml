@@ -1,0 +1,8 @@
+# Secret scanners: the age key under tests/ is a throwaway test key that only
+# decrypts a fake password inside the VM test. It protects nothing real.
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Throwaway test key for tests/builds/vm-host"
+paths = ['''tests/builds/vm-host/age-key\.txt''']

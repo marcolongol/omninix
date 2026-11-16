@@ -41,8 +41,10 @@
     };
   };
 
-  # Build every host in `hosts` ({ name = module; }, usually from
-  # discoverNixFiles) for `platform` (platforms.nixos or platforms.darwin).
+  # What one host is built from: its inputs, and the `specialArgs` and
+  # `modules` handed to the platform's system function. mkHostConfigurations
+  # builds every host from this; the VM tests boot a host from it through
+  # NixOS's test driver, so they test exactly what the builder makes.
   #
   # Each host gets:
   #   - networking.hostName = its name (mkDefault, so the host can change it)
@@ -61,13 +63,13 @@
   #     `sharedHomeModules` (profiles, always-on modules) and their file in
   #     `users` ({ name = module; }) when they have one
   #
-  # Type: Platform -> { inputs, hosts, users ? AttrSet, sharedModules ? [Module],
+  # Type: Platform -> { inputs, users ? AttrSet, sharedModules ? [Module],
   #         sharedHomeModules ? [Module], defaultSystem ? String,
   #         hostSystems ? AttrSet, hostInputs ? AttrSet, secretsPath ? Path,
-  #         overlays ? [Overlay], allowUnfree ? Bool } -> AttrSet
-  mkHostConfigurations = platform: {
+  #         overlays ? [Overlay], allowUnfree ? Bool, ... }
+  #       -> String -> Module -> { inputs, specialArgs, modules }
+  hostEvalArgs = platform: {
     inputs,
-    hosts,
     users ? {},
     sharedModules ? [],
     sharedHomeModules ? [],
@@ -77,42 +79,62 @@
     secretsPath ? null,
     overlays ? [],
     allowUnfree ? false,
-  }: let
-    homes = {inherit users sharedHomeModules secretsPath;};
+    # `hosts` and anything else the builder takes.
+    ...
+  }: hostName: host: let
+    inputs' = inputs // (hostInputs.${hostName} or {});
+  in {
+    inputs = inputs';
+    specialArgs = {
+      inherit hostName;
+      inputs = inputs';
+    };
+    modules =
+      [
+        host
+        platform.core
+        {
+          networking.hostName = lib.mkDefault hostName;
+          nixpkgs.hostPlatform = lib.mkDefault (hostSystems.${hostName} or defaultSystem);
+        }
+        (lib.omninix.nixpkgsModule {inherit overlays allowUnfree;})
+      ]
+      ++ platform.extraModules inputs'
+      ++ sharedModules
+      ++ lib.optional (inputs' ? sops-nix)
+      (lib.modules.importApply platform.secrets {secretFile = lib.omninix.secretFile secretsPath;})
+      ++ lib.optional (inputs' ? home-manager)
+      (lib.modules.importApply ../modules/shared/home-manager.nix {
+        homeManagerModule = platform.homeManager inputs';
+        homeModules = lib.omninix.userHomeModules {inherit users sharedHomeModules secretsPath;};
+      });
+  };
 
+  # Build every host in `hosts` ({ name = module; }, usually from
+  # discoverNixFiles) for `platform` (platforms.nixos or platforms.darwin),
+  # from hostEvalArgs, after checking the arguments.
+  #
+  # Type: Platform -> { inputs, hosts, …as hostEvalArgs… } -> AttrSet
+  mkHostConfigurations = platform: args @ {
+    inputs,
+    hosts,
+    users ? {},
+    sharedHomeModules ? [],
+    hostSystems ? {},
+    hostInputs ? {},
+    secretsPath ? null,
+    ...
+  }: let
     mkHost = hostName: host: let
-      inputs' = inputs // (hostInputs.${hostName} or {});
+      evalArgs = hostEvalArgs platform args hostName host;
     in
-      platform.build inputs' {
-        specialArgs = {
-          inherit hostName;
-          inputs = inputs';
-        };
-        modules =
-          [
-            host
-            platform.core
-            {
-              networking.hostName = lib.mkDefault hostName;
-              nixpkgs.hostPlatform = lib.mkDefault (hostSystems.${hostName} or defaultSystem);
-            }
-            (lib.omninix.nixpkgsModule {inherit overlays allowUnfree;})
-          ]
-          ++ platform.extraModules inputs'
-          ++ sharedModules
-          ++ lib.optional (inputs' ? sops-nix)
-          (lib.modules.importApply platform.secrets {secretFile = lib.omninix.secretFile secretsPath;})
-          ++ lib.optional (inputs' ? home-manager)
-          (lib.modules.importApply ../modules/shared/home-manager.nix {
-            homeManagerModule = platform.homeManager inputs';
-            homeModules = lib.omninix.userHomeModules homes;
-          });
-      };
+      platform.build evalArgs.inputs {inherit (evalArgs) specialArgs modules;};
   in
     lib.omninix.withKnownNames "host" hosts {inherit hostSystems hostInputs;}
     (lib.omninix.withSops inputs secretsPath
-      (lib.omninix.withHomeManager inputs homes (lib.mapAttrs mkHost hosts)));
+      (lib.omninix.withHomeManager inputs {inherit users sharedHomeModules;} (lib.mapAttrs mkHost hosts)));
 in {
   mkNixosConfigurations = mkHostConfigurations platforms.nixos;
   mkDarwinConfigurations = mkHostConfigurations platforms.darwin;
+  nixosHostEvalArgs = hostEvalArgs platforms.nixos;
 }
