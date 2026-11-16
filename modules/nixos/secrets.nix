@@ -1,21 +1,18 @@
-# sops-nix on hosts: imported whenever the flake has the input, so hosts can
-# use it by hand; with secretsPath, wired by convention (lib/secrets.nix).
-#
-# The builder applies this with importApply, passing `secretFile`:
-# lib.omninix.secretFile with secretsPath already filled in, so
-# `secretFile "users/alice"` is that file or null.
-{secretFile}: {
+# secretsPath on NixOS hosts, by convention:
+#   <host>.yaml          the host's default sops file
+#   users/<user>.yaml    key `hashed-password`: that user's password
+# The builder imports sops-nix's module next to this one whenever the flake
+# has the input. Applied with importApply, like every OmniNix module that
+# needs the fleet; fleet.secretFile gives a file or null.
+{fleet}: {
   config,
   lib,
-  inputs,
   hostName,
   ...
 }: let
-  hostFile = secretFile hostName;
-  usersWithSecret = lib.filter (name: secretFile "users/${name}" != null) config.omninix.activeUsers;
+  hostFile = fleet.secretFile hostName;
+  usersWithSecret = lib.filter (name: fleet.secretFile "users/${name}" != null) config.omninix.activeUsers;
 in {
-  imports = [inputs.sops-nix.nixosModules.sops];
-
   config = lib.mkMerge [
     (lib.mkIf (hostFile != null) {
       sops.defaultSopsFile = lib.mkDefault hostFile;
@@ -25,7 +22,7 @@ in {
       # Each user's password, decrypted before users are created...
       sops.secrets = lib.listToAttrs (map (name:
         lib.nameValuePair "user-password-${name}" {
-          sopsFile = secretFile "users/${name}";
+          sopsFile = fleet.secretFile "users/${name}";
           key = "hashed-password";
           neededForUsers = true;
         })

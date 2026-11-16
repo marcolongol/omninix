@@ -30,7 +30,8 @@
         omninix.hostUsers.alice.enable = true;
         users.users.alice.hashedPassword = "$y$fake";
       };
-      sharedModules = [role] ++ lib.optional withImpermanence inputs.impermanence.nixosModules.impermanence;
+      roles.impermanent = role;
+      nixosModules = lib.optionalAttrs withImpermanence {inherit (inputs.impermanence.nixosModules) impermanence;};
       users.alice = {omninix.persistence.directories = [".ssh"];};
     })
     .h;

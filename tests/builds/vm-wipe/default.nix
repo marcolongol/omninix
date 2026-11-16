@@ -12,7 +12,7 @@
     (lib.omninix.mkNixosConfigurations {
       inherit inputs;
       defaultSystem = pkgs.stdenv.hostPlatform.system;
-      sharedModules = [inputs.self.roles.impermanent];
+      roles.impermanent = inputs.self.roles.impermanent;
       hosts.wipe = {
         imports = [extra];
         system.stateVersion = "26.05";

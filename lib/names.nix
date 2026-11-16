@@ -19,19 +19,6 @@
   #   unknownNamesIn { laptop = …; } { hostSystems = { lpatop = …; }; hostInputs = {}; }
   #   => { hostSystems = [ "lpatop" ]; }
   unknownNamesIn = known: maps: lib.filterAttrs (_: names: names != []) (lib.mapAttrs (_: unknownNames known) maps);
-
-  # Return `value`, or throw naming every bad name in every map.
-  #
-  # Type: String -> AttrSet -> AttrSet -> a -> a
-  #
-  # Example message:
-  #   OmniNix: hostSystems names unknown host(s): lpatop; hostInputs names unknown host(s): pie
-  withKnownNames = kind: known: maps: value: let
-    unknown = unknownNamesIn known maps;
-  in
-    if unknown == {}
-    then value
-    else throw "OmniNix: ${lib.concatStringsSep "; " (lib.mapAttrsToList (option: names: "${option} names unknown ${kind}(s): ${toString names}") unknown)}";
 in {
-  inherit unknownNames unknownNamesIn withKnownNames;
+  inherit unknownNames unknownNamesIn;
 }

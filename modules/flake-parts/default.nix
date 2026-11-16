@@ -1,6 +1,10 @@
 # OmniNix's flake-parts module (flakeModules.default): point omninix.*Dir at
 # your directories and get your fleet.
 #
+# Three steps: discover the directories into pieces, hand pieces and the
+# other options to the builders as settings (lib/fleet.nix), export your own
+# pieces.
+#
 # Applied with importApply, so `omninixLib` (our lib.omninix) arrives by
 # closure: inside a consumer's flake, `lib` and `inputs` are theirs.
 {omninixLib}: {
@@ -10,82 +14,68 @@
   ...
 }: let
   cfg = config.omninix;
+  defaults = omninixLib.fleetDefaults;
 
-  # A directory's pieces, or {} when it isn't set.
-  discover = dir:
-    if dir == null
-    then {}
-    else omninixLib.discoverNixFiles ["default.nix"] dir;
+  # --- 1. directories -> pieces ---------------------------------------------
 
-  # A directory of shareable pieces, with its internal/: `all` is used here,
-  # `exportable` is exported.
-  discoverPiecesWith = markers: dir:
+  # Every directory becomes { all; exportable; }: `all` is used here,
+  # `exportable` is exported. Shareable pieces also take an internal/
+  # subdirectory (used, never exported); the rest are plain. Empty when unset.
+  shareable = markers: dir:
     if dir == null
     then {
       all = {};
       exportable = {};
     }
     else omninixLib.discoverPieces markers dir;
-  discoverPieces = discoverPiecesWith ["default.nix"];
-
-  hosts = discover cfg.hostsDir;
-  users = discover cfg.usersDir;
-
-  # A role directory may hold only a darwin half.
-  ownRoles = discoverPiecesWith ["default.nix" "darwin.nix"] cfg.rolesDir;
-  ownProfiles = discoverPieces cfg.profilesDir;
-  ownNixosModules = discoverPieces cfg.nixosModulesDir;
-  ownDarwinModules = discoverPieces cfg.darwinModulesDir;
-  ownHomeModules = discoverPieces cfg.homeModulesDir;
-
-  # Ours plus the extras, ours winning a clash. Roles merge whole, by name,
-  # and only then split into halves, so a host never mixes halves from two
-  # flakes. Borrowed roles and profiles can't read our `inputs` (borrow).
-  ownRoleHalves = omninixLib.splitRoles ownRoles.all;
-  extraRoleHalves = omninixLib.splitRoles (omninixLib.newExtras "roles" ownRoles.all cfg.extraRoles);
-  borrowAll = kind: lib.mapAttrs (omninixLib.borrow kind);
-  roleHalves = {
-    nixos = ownRoleHalves.nixos // borrowAll "roles" extraRoleHalves.nixos;
-    darwin = ownRoleHalves.darwin // borrowAll "roles" extraRoleHalves.darwin;
-  };
-  profiles = omninixLib.withExtras "profiles" ownProfiles.all (borrowAll "profiles" cfg.extraProfiles);
-  nixosModules = omninixLib.withExtras "nixosModules" ownNixosModules.all cfg.extraNixosModules;
-  darwinModules = omninixLib.withExtras "darwinModules" ownDarwinModules.all cfg.extraDarwinModules;
-  homeModules = omninixLib.withExtras "homeModules" ownHomeModules.all cfg.extraHomeModules;
-
-  # A host is a Mac when its system is darwin. Each builder sees only its
-  # own hosts' entries in the per-host maps; typos are caught across all
-  # hosts first (see config.flake).
-  isDarwin = name: lib.hasSuffix "-darwin" (cfg.hostSystems.${name} or cfg.defaultSystem);
-  darwinHosts = lib.filterAttrs (name: _: isDarwin name) hosts;
-  nixosHosts = lib.filterAttrs (name: _: !(isDarwin name)) hosts;
-  onlyFor = someHosts: lib.filterAttrs (name: _: someHosts ? ${name});
-  packages = discover cfg.packagesDir;
-
-  # One package set everywhere: the packages, then overlaysDir in name order.
-  overlays = omninixLib.allOverlays {
-    inherit inputs packages;
-    overlays = discover cfg.overlaysDir;
-  };
-  changesPkgs = overlays != [] || cfg.allowUnfree;
-  nixpkgsArgs = {
-    inherit overlays;
-    inherit (cfg) allowUnfree;
+  plain = dir: let
+    pieces =
+      if dir == null
+      then {}
+      else omninixLib.discoverNixFiles ["default.nix"] dir;
+  in {
+    all = pieces;
+    exportable = pieces;
   };
 
-  # Every host imports its platform's role halves and always-on modules;
-  # every home the profiles and the always-on home modules.
-  sharedHomeModules = lib.attrValues profiles ++ lib.attrValues homeModules;
-
-  # What both builders get.
-  hostArgs = someHosts: {
-    inherit inputs users sharedHomeModules;
-    inherit (cfg) defaultSystem secretsPath allowUnfree;
-    inherit (nixpkgsArgs) overlays;
-    hosts = someHosts;
-    hostSystems = onlyFor someHosts cfg.hostSystems;
-    hostInputs = onlyFor someHosts cfg.hostInputs;
+  found = {
+    hosts = plain cfg.hostsDir;
+    users = plain cfg.usersDir;
+    packages = plain cfg.packagesDir;
+    overlays = plain cfg.overlaysDir;
+    # A role directory may hold only a darwin half.
+    roles = shareable ["default.nix" "darwin.nix"] cfg.rolesDir;
+    profiles = shareable ["default.nix"] cfg.profilesDir;
+    nixosModules = shareable ["default.nix"] cfg.nixosModulesDir;
+    darwinModules = shareable ["default.nix"] cfg.darwinModulesDir;
+    homeModules = shareable ["default.nix"] cfg.homeModulesDir;
   };
+
+  # --- 2. pieces + options -> settings ----------------------------------------
+
+  settings =
+    {inherit inputs;}
+    // lib.mapAttrs (_: pieces: pieces.all) found
+    // {
+      inherit
+        (cfg)
+        extraRoles
+        extraProfiles
+        extraNixosModules
+        extraDarwinModules
+        extraHomeModules
+        secretsPath
+        allowUnfree
+        defaultSystem
+        hostSystems
+        userSystems
+        hostInputs
+        userInputs
+        ;
+    };
+  fleet = omninixLib.mkFleet settings;
+
+  # --- options ----------------------------------------------------------------
 
   dirOption = description:
     lib.mkOption {
@@ -102,15 +92,6 @@
       description = "Per-${what} system, overriding defaultSystem. Unknown names are an error.";
     };
 
-  # Another flake's pieces, by name: paths or modules, passed through as is.
-  extraOption = what: example:
-    lib.mkOption {
-      type = lib.types.attrsOf (lib.types.addCheck lib.types.raw (v: builtins.isPath v || builtins.isString v || builtins.isFunction v || builtins.isAttrs v));
-      default = {};
-      example = lib.literalExpression example;
-      description = "More ${what} by name, e.g. from another flake. Yours win a name clash. Used here, never exported.";
-    };
-
   inputsOption = what:
     lib.mkOption {
       # lazyAttrsOf raw: inputs are passed through untouched, and only read
@@ -119,6 +100,15 @@
       default = {};
       example = lib.literalExpression "{ pi.nixpkgs = inputs.nixpkgs-unstable; }";
       description = "Per-${what} flake inputs, merged over the flake's own for that ${what} only (its nixpkgs, Home Manager and `inputs` argument). Unknown names are an error.";
+    };
+
+  # Another flake's pieces, by name: paths or modules, passed through as is.
+  extraOption = what: example:
+    lib.mkOption {
+      type = lib.types.attrsOf (lib.types.addCheck lib.types.raw (v: builtins.isPath v || builtins.isString v || builtins.isFunction v || builtins.isAttrs v));
+      default = {};
+      example = lib.literalExpression example;
+      description = "More ${what} by name, e.g. from another flake. Yours win a name clash. Used here, never exported.";
     };
 in {
   options.omninix = {
@@ -131,16 +121,16 @@ in {
     homeModulesDir = dirOption "Always-on Home Manager modules every home imports. Exported as `homeModules`.";
     packagesDir = dirOption "Packages, one `callPackage` file each (a package asking for `inputs` gets the flake's): pkgs.<name> on every host and home, packages.<system>.<name>, and the shareable overlays.packages.";
     overlaysDir = dirOption "Overlays, one per file, applied in name order after the packages (so they can override them) on every host and home and in perSystem pkgs.";
-    allowUnfree = lib.mkOption {
-      type = lib.types.bool;
-      default = false;
-      description = "Allow unfree packages on every host and home and in perSystem pkgs. A single host can set nixpkgs.config.allowUnfree itself instead.";
-    };
     secretsPath = dirOption "sops-nix secrets: `users/<user>.yaml` (key `hashed-password`) is that user's password and their default sops file in Home Manager; `<host>.yaml` is the host's default sops file. Needs a sops-nix input.";
 
+    allowUnfree = lib.mkOption {
+      type = lib.types.bool;
+      default = defaults.allowUnfree;
+      description = "Allow unfree packages on every host and home and in perSystem pkgs. A single host can set nixpkgs.config.allowUnfree itself instead.";
+    };
     defaultSystem = lib.mkOption {
       type = lib.types.str;
-      default = "x86_64-linux";
+      default = defaults.defaultSystem;
       description = "System for hosts and users not listed in hostSystems / userSystems.";
     };
     hostSystems = systemsOption "host";
@@ -157,60 +147,45 @@ in {
     extraHomeModules = extraOption "always-on Home Manager modules" "{ nixievim = inputs.nixievim.homeManagerModules.default; }";
   };
 
+  # --- 3. outputs -----------------------------------------------------------------
+
   config.flake = lib.mkMerge [
     {
-      nixosConfigurations =
-        omninixLib.withKnownNames "host" hosts {inherit (cfg) hostSystems hostInputs;}
-        (omninixLib.mkNixosConfigurations (hostArgs nixosHosts
-            // {sharedModules = lib.attrValues roleHalves.nixos ++ lib.attrValues nixosModules;}));
+      nixosConfigurations = omninixLib.mkNixosConfigurations settings;
 
-      # Exports: our own pieces, never internal/ or extra* (re-exporting another
-      # flake's pieces would pin them at our version).
-      roles = ownRoles.exportable;
-      profiles = ownProfiles.exportable;
+      # Exports: our own pieces, never internal/ or extra* (re-exporting
+      # another flake's pieces would pin them at our version).
+      roles = found.roles.exportable;
+      profiles = found.profiles.exportable;
 
       # mkDefault per entry: nixosModules is typed by flake-parts, and its
       # entries merge. A flake's own entry of the same name should replace
       # ours, not merge with it.
-      nixosModules = lib.mapAttrs (_: lib.mkDefault) ownNixosModules.exportable;
+      nixosModules = lib.mapAttrs (_: lib.mkDefault) found.nixosModules.exportable;
     }
 
-    # Only when there is something to put there, so a flake without users or
-    # home modules doesn't get empty outputs it might define itself.
-    (lib.mkIf (users != {}) {
-      homeConfigurations = omninixLib.mkHomeConfigurations {
-        inherit inputs users sharedHomeModules;
-        inherit (cfg) defaultSystem userSystems userInputs secretsPath;
-        inherit (nixpkgsArgs) overlays allowUnfree;
-      };
-    })
-    (lib.mkIf (darwinHosts != {}) {
-      darwinConfigurations =
-        omninixLib.withKnownNames "host" hosts {inherit (cfg) hostSystems hostInputs;}
-        (omninixLib.mkDarwinConfigurations (hostArgs darwinHosts
-            // {sharedModules = lib.attrValues roleHalves.darwin ++ lib.attrValues darwinModules;}));
-    })
-    (lib.mkIf (ownDarwinModules.exportable != {}) {darwinModules = ownDarwinModules.exportable;})
-    (lib.mkIf (ownHomeModules.exportable != {}) {homeModules = ownHomeModules.exportable;})
-
+    # Only when there is something to put there, so a flake doesn't get
+    # empty outputs it might define itself.
+    (lib.mkIf (fleet.users != {}) {homeConfigurations = omninixLib.mkHomeConfigurations settings;})
+    (lib.mkIf (fleet.darwinHosts != {}) {darwinConfigurations = omninixLib.mkDarwinConfigurations settings;})
+    (lib.mkIf (found.darwinModules.exportable != {}) {darwinModules = found.darwinModules.exportable;})
+    (lib.mkIf (found.homeModules.exportable != {}) {homeModules = found.homeModules.exportable;})
     # mkDefault: a flake's own overlays.packages replaces ours.
-    (lib.mkIf (packages != {}) {
-      overlays.packages = lib.mkDefault (omninixLib.exportOverlay packages);
-    })
+    (lib.mkIf (fleet.packages != {}) {overlays.packages = lib.mkDefault (omninixLib.exportOverlay fleet.packages);})
   ];
 
   # perSystem gets the same package set as hosts and homes, so
-  # packages.<system> matches what they install. Only when something
-  # changes it, and mkDefault, so a flake can still set its own pkgs.
+  # packages.<system> matches what they install. Only when something changes
+  # it, and mkDefault, so a flake can still set its own pkgs.
   config.perSystem = {system, ...}: let
     pkgs = import inputs.nixpkgs {
       inherit system;
-      inherit (nixpkgsArgs) overlays;
-      config.allowUnfree = cfg.allowUnfree;
+      inherit (fleet) overlays;
+      config.allowUnfree = fleet.allowUnfree;
     };
   in
-    lib.mkIf changesPkgs {
+    lib.mkIf (fleet.overlays != [] || fleet.allowUnfree) {
       _module.args.pkgs = lib.mkDefault pkgs;
-      packages = lib.mapAttrs (_: lib.mkDefault) (omninixLib.packagesFor packages pkgs);
+      packages = lib.mapAttrs (_: lib.mkDefault) (omninixLib.packagesFor fleet.packages pkgs);
     };
 }

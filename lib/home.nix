@@ -1,90 +1,33 @@
-# Home Manager homes: what makes up a user's home, and standalone
-# homeConfigurations built from the same user files as host homes.
+# Standalone homes (homeConfigurations), built from the fleet with the same
+# home modules as host homes (fleet.homeModulesFor).
 {lib}: let
-  # The modules that make up `name`'s home, on a host or standalone: the
-  # shared home modules (profiles, always-on modules), their file in `users`
-  # (if they have one), a stateVersion default, sops-nix's module when the
-  # flake has the input, and their secret file as the default sops file.
-  #
-  # Type: { users, sharedHomeModules, secretsPath } -> String -> [Module]
-  userHomeModules = {
-    users,
-    sharedHomeModules,
-    secretsPath,
-  }: name: let
-    secret = lib.omninix.secretFile secretsPath "users/${name}";
-  in
-    sharedHomeModules
-    ++ lib.optional (users ? ${name}) users.${name}
-    ++ [
-      {
-        # Frozen: never bump this with the nixpkgs pin, or users who don't
-        # set it would silently move to a newer stateVersion.
-        home.stateVersion = lib.mkDefault "26.05";
-      }
-
-      # omninix.requirements, as on hosts, and omninix.persistence.
-      ../modules/shared/requirements.nix
-      ../modules/home/persistence.nix
-
-      # `inputs` is a special argument here, so imports may depend on it.
-      ({inputs, ...}: {imports = lib.optional (inputs ? sops-nix) inputs.sops-nix.homeManagerModules.sops;})
-    ]
-    ++ lib.optional (secret != null) {sops.defaultSopsFile = lib.mkDefault secret;};
-
-  # Return `value`, or throw if there are user files or shared home modules
-  # but no home-manager input to apply them (they would be silently dropped).
-  #
-  # Type: AttrSet -> { users, sharedHomeModules, ... } -> a -> a
-  withHomeManager = inputs: {
-    users,
-    sharedHomeModules,
-    ...
-  }: value:
-    if (users != {} || sharedHomeModules != []) && !(inputs ? home-manager)
-    then throw "OmniNix: Home Manager modules need a home-manager flake input (user files: ${toString (lib.attrNames users)}; shared home modules: ${toString (lib.length sharedHomeModules)})"
-    else value;
-
-  # Build every user in `users` ({ name = module; }) as a standalone home.
+  # Every user in the fleet, as a standalone home.
   #
   # Each home gets:
-  #   - userHomeModules (shared home modules, the user's file, the
-  #     stateVersion default and sops-nix)
+  #   - fleet.homeModulesFor <name> (profiles, home modules, the user's file,
+  #     the stateVersion default, sops-nix)
   #   - home.username = its name, and home.homeDirectory = /root for root,
   #     /Users/<name> on darwin, /home/<name> otherwise (all mkDefault)
-  #   - pkgs for userSystems.<name> or defaultSystem, with `overlays` and
-  #     allowUnfree applied by Home Manager's nixpkgs options
-  #   - `inputs` as a module argument
-  # all from the flake's inputs with userInputs.<name> on top.
+  #   - pkgs for its system, with the fleet's overlays applied by Home
+  #     Manager's nixpkgs options
+  #   - `inputs` (with its userInputs on top) as an argument
   #
-  # Type: { inputs, users, sharedHomeModules ? [Module], defaultSystem ? String, userSystems ? AttrSet,
-  #         userInputs ? AttrSet, secretsPath ? Path, overlays ? [Overlay],
-  #         allowUnfree ? Bool } -> AttrSet
-  mkHomeConfigurations = {
-    inputs,
-    users,
-    sharedHomeModules ? [],
-    defaultSystem ? "x86_64-linux",
-    userSystems ? {},
-    userInputs ? {},
-    secretsPath ? null,
-    overlays ? [],
-    allowUnfree ? false,
-  }: let
-    homes = {inherit users sharedHomeModules secretsPath;};
+  # Type: Settings -> { name = home; }
+  mkHomeConfigurations = settings: let
+    fleet = lib.omninix.mkFleet settings;
 
-    mkHome = name: _: let
-      system = userSystems.${name} or defaultSystem;
-      inputs' = inputs // (userInputs.${name} or {});
+    build = name: _: let
+      system = fleet.userSystemOf name;
+      inputs = fleet.userInputsFor name;
     in
-      inputs'.home-manager.lib.homeManagerConfiguration {
-        pkgs = inputs'.nixpkgs.legacyPackages.${system};
-        extraSpecialArgs = {inputs = inputs';};
+      inputs.home-manager.lib.homeManagerConfiguration {
+        pkgs = inputs.nixpkgs.legacyPackages.${system};
+        extraSpecialArgs = {inherit inputs;};
         modules =
-          userHomeModules homes name
+          fleet.homeModulesFor name
           ++ [
             # Host homes share the host's pkgs instead (useGlobalPkgs).
-            (lib.omninix.nixpkgsModule {inherit overlays allowUnfree;})
+            (lib.omninix.nixpkgsModule {inherit (fleet) overlays allowUnfree;})
             {
               # On a host, NixOS supplies these from the user account; here
               # nothing does.
@@ -100,9 +43,7 @@
           ];
       };
   in
-    lib.omninix.withKnownNames "user" users {inherit userSystems userInputs;}
-    (lib.omninix.withSops inputs secretsPath
-      (withHomeManager inputs homes (lib.mapAttrs mkHome users)));
+    lib.omninix.check fleet (lib.mapAttrs build fleet.users);
 in {
-  inherit userHomeModules withHomeManager mkHomeConfigurations;
+  inherit mkHomeConfigurations;
 }

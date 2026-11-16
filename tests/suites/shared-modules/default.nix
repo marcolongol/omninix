@@ -1,5 +1,5 @@
-# sharedModules / sharedHomeModules: modules every host / every home
-# imports. Roles and profiles are such modules that stay off until enabled.
+# Roles and profiles: modules every host / every home imports, each off
+# until a host or user enables it.
 {
   lib,
   inputs,
@@ -43,8 +43,8 @@
       };
       without = alice;
     };
-    sharedModules = [dockerRole];
-    sharedHomeModules = [gitProfile];
+    roles.docker = dockerRole;
+    profiles.git = gitProfile;
     users.alice = {profiles.git.enable = true;};
   };
 in {
@@ -75,7 +75,7 @@ in {
       (lib.omninix.mkHomeConfigurations {
         inherit inputs;
         users.alice = {profiles.git.enable = true;};
-        sharedHomeModules = [gitProfile];
+        profiles.git = gitProfile;
       })
       .alice
       .config
@@ -93,7 +93,7 @@ in {
           omninix.hostUsers.bob.enable = true;
           users.users.bob.hashedPassword = "$y$fake";
         };
-        sharedHomeModules = [gitProfile];
+        profiles.git = gitProfile;
       };
     in
       c.h.home-manager.users.bob.profiles.git.enable;
@@ -105,7 +105,7 @@ in {
     expr =
       (builtins.tryEval (evalHosts {
         hosts.h = {};
-        sharedHomeModules = [gitProfile];
+        profiles.git = gitProfile;
         inputs = removeAttrs inputs ["home-manager"];
       }))
       .success;

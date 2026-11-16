@@ -95,6 +95,7 @@ in {
       (builtins.tryEval
         (lib.omninix.mkDarwinConfigurations {
           inherit inputs;
+          hostSystems.mac = "aarch64-darwin";
           hosts.mac = {
             system.stateVersion = 6;
             omninix.hostUsers.alice = {
@@ -138,6 +139,7 @@ in {
       (builtins.tryEval
         (lib.omninix.mkDarwinConfigurations {
           inputs = removeAttrs inputs ["nix-darwin"];
+          hostSystems.mac = "aarch64-darwin";
           hosts.mac = {};
         })
       .mac)

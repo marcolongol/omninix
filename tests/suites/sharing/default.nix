@@ -114,7 +114,7 @@ in {
     expr =
       (evalHosts {
         hosts.h = {};
-        sharedModules = [(their + "/roles/reads-inputs.nix")];
+        nixosModules.reads-inputs = their + "/roles/reads-inputs.nix";
       })
       .h
       .environment
