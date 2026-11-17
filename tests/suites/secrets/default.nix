@@ -2,6 +2,7 @@
 #   secrets/users/<user>.yaml  key `hashed-password`: that user's password,
 #                              and their default sops file in Home Manager
 #   secrets/<host>.yaml        the host's default sops file
+#   secrets/shared.yaml        every host's omninix.secrets.shared
 # Nothing is decrypted here: these are evaluation tests, checking paths.
 {
   lib,
@@ -133,5 +134,23 @@ in {
         inputs = removeAttrs inputs ["sops-nix"];
       })).success;
     expected = false;
+  };
+
+  # shared.yaml is every host's to use, by path.
+  testSharedFile = {
+    expr = {
+      laptop = laptop.omninix.secrets.shared;
+      desktop = desktop.omninix.secrets.shared;
+      without =
+        (evalHosts {
+          hosts.h = {};
+          secretsPath = secrets + "/users";
+        }).h.omninix.secrets.shared;
+    };
+    expected = {
+      laptop = secrets + "/shared.yaml";
+      desktop = secrets + "/shared.yaml";
+      without = null;
+    };
   };
 }

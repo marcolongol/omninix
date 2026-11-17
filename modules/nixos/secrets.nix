@@ -1,6 +1,7 @@
 # secretsPath on NixOS hosts, by convention:
 #   <host>.yaml          the host's default sops file
 #   users/<user>.yaml    key `hashed-password`: that user's password
+#   shared.yaml          omninix.secrets.shared, for any host's modules
 # The builder imports sops-nix's module next to this one whenever the flake
 # has the input. Applied with importApply, like every OmniNix module that
 # needs the fleet; fleet.secretFile gives a file or null.
@@ -13,6 +14,8 @@
   hostFile = fleet.secretFile hostName;
   usersWithSecret = lib.filter (name: fleet.secretFile "users/${name}" != null) config.omninix.activeUsers;
 in {
+  imports = [(lib.modules.importApply ../shared/secrets.nix {inherit fleet;})];
+
   config = lib.mkMerge [
     (lib.mkIf (hostFile != null) {
       sops.defaultSopsFile = lib.mkDefault hostFile;
