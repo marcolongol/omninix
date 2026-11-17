@@ -1,0 +1,36 @@
+// Read by .github/workflows/renovate.yaml, which runs Renovate as the
+// homelab GitHub App (credentials from 1Password Connect). It updates
+// flake.lock and dev/flake.lock (the nix manager finds both flake.nix files)
+// and the GitHub Actions.
+{
+  $schema: "https://docs.renovatebot.com/renovate-schema.json",
+  extends: ["config:recommended", ":dependencyDashboard", ":semanticCommits"],
+
+  nix: {enabled: true},
+
+  // Lock refreshes and minor action bumps merge once CI is green. Renovate
+  // checks the status itself, so no branch protection is needed.
+  platformAutomerge: false,
+  lockFileMaintenance: {
+    enabled: true,
+    automerge: true,
+    postUpdateOptions: ["nixFlakeUpdate"],
+    schedule: ["before 6am on monday"],
+  },
+  packageRules: [
+    {
+      matchManagers: ["github-actions"],
+      matchUpdateTypes: ["digest", "patch", "minor"],
+      automerge: true,
+    },
+    {
+      // A NixOS release (nixos-26.05 -> 26.11) is a deliberate bump.
+      matchManagers: ["nix"],
+      matchUpdateTypes: ["major", "minor"],
+      automerge: false,
+    },
+  ],
+
+  timezone: "America/Los_Angeles",
+  labels: ["dependencies"],
+}

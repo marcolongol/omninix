@@ -1,0 +1,54 @@
+name: Unstable
+
+# OmniNix against what's coming: nixos-unstable, Home Manager master and
+# nix-darwin master. Failures here are early warnings, not broken releases.
+on:
+  schedule:
+    - cron: "0 7 * * 1,4"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    name: Checks (${{ matrix.system }}, unstable)
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - system: x86_64-linux
+            runner: ubuntu-latest
+          - system: aarch64-darwin
+            runner: macos-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: cachix/install-nix-action@v31
+        with:
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+
+      - name: Enable KVM
+        if: matrix.system == 'x86_64-linux'
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
+            | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      # Home Manager and nix-darwin are dev inputs (dev/flake.nix), which
+      # --override-input can't reach: move them to master there instead.
+      - name: Use Home Manager and nix-darwin master
+        run: |
+          sed -i.bak \
+            -e 's|home-manager/release-[0-9.]*|home-manager|' \
+            -e 's|nix-darwin/nix-darwin-[0-9.]*|nix-darwin/master|' \
+            dev/flake.nix
+          nix flake lock ./dev
+
+      - name: Build every check
+        run: >-
+          .github/build-checks.sh ${{ matrix.system }}
+          --override-input nixpkgs github:nixos/nixpkgs/nixos-unstable

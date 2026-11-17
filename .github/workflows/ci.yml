@@ -1,0 +1,56 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    name: Checks (${{ matrix.system }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - system: x86_64-linux
+            runner: ubuntu-latest
+          # No nested virtualisation on the arm runners: no VM tests there.
+          - system: aarch64-linux
+            runner: ubuntu-24.04-arm
+            flags: --no-vms
+          # Standalone homes and a real nix-darwin build.
+          - system: aarch64-darwin
+            runner: macos-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: cachix/install-nix-action@v31
+        with:
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+
+      # The VM tests boot QEMU guests, which need /dev/kvm to be usable by
+      # the runner's user.
+      - name: Enable KVM
+        if: matrix.system == 'x86_64-linux'
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
+            | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Build every check
+        run: .github/build-checks.sh ${{ matrix.system }} ${{ matrix.flags }}
+
+      # Every system's outputs evaluate, including the ones no runner builds.
+      - name: Evaluate all systems
+        if: matrix.system == 'x86_64-linux'
+        run: nix flake check --no-build --all-systems
