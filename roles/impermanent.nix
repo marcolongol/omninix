@@ -101,13 +101,13 @@ in {
       # follow hostKeys, so secrets decrypt before any bind mount exists.
       services.openssh.hostKeys = lib.mkDefault [
         {
-          path = "/persist/etc/ssh/ssh_host_ed25519_key";
-          type = "ed25519";
-        }
-        {
           path = "/persist/etc/ssh/ssh_host_rsa_key";
           type = "rsa";
           bits = 4096;
+        }
+        {
+          path = "/persist/etc/ssh/ssh_host_ed25519_key";
+          type = "ed25519";
         }
       ];
     }
@@ -119,12 +119,10 @@ in {
         enable = true;
         hideMounts = true;
         directories =
-          [
-            "/var/log"
-            # User and group IDs, so they stay stable across boots.
-            "/var/lib/nixos"
-          ]
+          ["/var/log"]
           ++ lib.optional config.hardware.bluetooth.enable "/var/lib/bluetooth"
+          # User and group IDs, so they stay stable across boots.
+          ++ ["/var/lib/nixos"]
           ++ lib.optional cfg.persistCoredumps "/var/lib/systemd/coredump"
           ++ lib.optional config.networking.networkmanager.enable "/etc/NetworkManager/system-connections"
           ++ config.omninix.persistence.directories;
@@ -162,6 +160,8 @@ in {
 
       # Invariant: a root subvolume exists whenever this unit exits. Any
       # failure boots the previous root, and rollback-root-check reports it.
+      # The script moves the old root aside (named by its last change) and
+      # creates a fresh one, putting the old one back if that fails.
       boot.initrd.systemd.services.rollback-root = {
         description = "Rollback btrfs root subvolume";
         wantedBy = ["initrd.target"];
@@ -181,8 +181,6 @@ in {
           mkdir -p ${mnt}
           mount -t btrfs -o subvolid=5 ${dev} ${mnt}
 
-          # Move the old root aside (named by its last change), then create a
-          # fresh one. If creating fails, put the old one back.
           if [[ -e ${mnt}/${sv} ]]; then
               mkdir -p ${mnt}/old_roots
               timestamp=$(date --date="@$(stat -c %Y ${mnt}/${sv})" "+%Y-%m-%d_%H:%M:%S")

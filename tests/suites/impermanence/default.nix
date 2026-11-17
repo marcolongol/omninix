@@ -83,7 +83,7 @@ in {
           roles.impermanent.persistCoredumps = true;
         };
       })).directories;
-    expected = ["/var/log" "/var/lib/nixos" "/var/lib/bluetooth" "/var/lib/systemd/coredump" "/etc/NetworkManager/system-connections"];
+    expected = ["/var/log" "/var/lib/bluetooth" "/var/lib/nixos" "/var/lib/systemd/coredump" "/etc/NetworkManager/system-connections"];
   };
 
   testPersistNeededForBoot = {
@@ -119,7 +119,7 @@ in {
       sops = c.sops.age.sshKeyPaths;
     };
     expected = {
-      keys = ["/persist/etc/ssh/ssh_host_ed25519_key" "/persist/etc/ssh/ssh_host_rsa_key"];
+      keys = ["/persist/etc/ssh/ssh_host_rsa_key" "/persist/etc/ssh/ssh_host_ed25519_key"];
       sops = ["/persist/etc/ssh/ssh_host_ed25519_key"];
     };
   };
