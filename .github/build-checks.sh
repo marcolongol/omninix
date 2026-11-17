@@ -12,6 +12,10 @@ if [[ ${1:-} == --no-vms ]]; then
   skip='^vm-'
   shift
 fi
-mapfile -t names < <(nix eval --json ".#checks.$system" --apply builtins.attrNames "$@" | jq -r '.[]' | grep -Ev "$skip")
+# A read loop, not mapfile: macOS runners have bash 3.2.
+names=()
+while IFS= read -r name; do
+  names+=("$name")
+done < <(nix eval --json ".#checks.$system" --apply builtins.attrNames "$@" | jq -r '.[]' | grep -Ev "$skip")
 echo "Building ${#names[@]} checks for $system: ${names[*]}"
 nix build -L "${names[@]/#/.#checks.$system.}" "$@"
