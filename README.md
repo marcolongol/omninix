@@ -78,6 +78,22 @@ That's a fleet: `nixosConfigurations.laptop` (hostname `laptop`, from the
 directory), with Alice's home on it, and `homeConfigurations.alice` for her
 environment on any other machine.
 
+## Add a piece
+
+Every piece has a template, so growing the fleet is one command:
+
+```bash
+nix flake new -t github:marcolongol/omninix#host        hosts/server
+nix flake new -t github:marcolongol/omninix#darwin-host hosts/macbook
+nix flake new -t github:marcolongol/omninix#user        users/bob
+nix flake new -t github:marcolongol/omninix#role        roles/webserver
+nix flake new -t github:marcolongol/omninix#profile     profiles/gaming
+```
+
+The directory you give is the piece's name: `hosts/server` is a host called
+`server`. There's nothing to register; it's part of the fleet as soon as it
+exists.
+
 ## Secure by default
 
 - **No password, no build.** A host where an active user has no password

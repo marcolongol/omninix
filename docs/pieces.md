@@ -19,6 +19,10 @@ with the same name are an error.
 
 ## Hosts
 
+```bash
+nix flake new -t github:marcolongol/omninix#host hosts/laptop
+```
+
 ```nix
 # hosts/laptop/default.nix
 {
@@ -45,8 +49,12 @@ Host files receive `hostName` and `inputs` (your flake's inputs) as arguments.
 
 ## Users
 
+```bash
+nix flake new -t github:marcolongol/omninix#user users/alice
+```
+
 ```nix
-# users/alice.nix
+# users/alice/default.nix (or users/alice.nix)
 {pkgs, ...}: {
   profiles.developer.enable = true;
   home.packages = [pkgs.ripgrep];
@@ -87,8 +95,14 @@ password ([Passwords and secrets](secrets.md)).
 
 A role says what a machine does. It declares its own switch:
 
+```bash
+nix flake new -t github:marcolongol/omninix#role roles/docker
+```
+
+Rename the template's `myrole` to the directory's name, then:
+
 ```nix
-# roles/docker.nix
+# roles/docker/default.nix (or roles/docker.nix)
 {config, lib, pkgs, ...}: {
   options.roles.docker.enable = lib.mkEnableOption "Docker";
 
@@ -135,8 +149,12 @@ both halves. Use a profile instead when each user should opt in.
 A profile says how a person likes their environment. Same shape as a role, in
 Home Manager:
 
+```bash
+nix flake new -t github:marcolongol/omninix#profile profiles/developer
+```
+
 ```nix
-# profiles/developer.nix
+# profiles/developer/default.nix (or profiles/developer.nix)
 {config, lib, pkgs, ...}: {
   options.profiles.developer.enable = lib.mkEnableOption "developer tools";
 

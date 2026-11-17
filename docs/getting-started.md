@@ -72,7 +72,7 @@ where an active user has no password doesn't build.
 - Turn on more roles, write your own: [Hosts, users, roles and profiles](pieces.md).
 - Use the same user on a machine without NixOS:
   `home-manager switch --flake .#alice`.
-- Add more pieces from templates:
+- Add more pieces, each in one command (the directory is the piece's name):
 
   ```bash
   nix flake new -t github:marcolongol/omninix#host        hosts/server
