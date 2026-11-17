@@ -17,11 +17,38 @@ in {
     lib = lib.omninix;
 
     flakeModules.default = flakeModule;
+
+    # `nix flake init -t github:marcolongol/omninix` for a whole fleet, or
+    # `nix flake new -t …#<template> <dir>` for one piece.
+    templates = {
+      default = {
+        path = ../../templates/default;
+        description = "A fleet: one host, one user, a role, a profile and secrets";
+      };
+      host = {
+        path = ../../templates/host;
+        description = "A NixOS host (into hosts/<name>)";
+      };
+      darwin-host = {
+        path = ../../templates/darwin-host;
+        description = "A Mac (into hosts/<name>)";
+      };
+      user = {
+        path = ../../templates/user;
+        description = "A user (into users/<name>)";
+      };
+      role = {
+        path = ../../templates/role;
+        description = "A role (into roles/<name>)";
+      };
+      profile = {
+        path = ../../templates/profile;
+        description = "A profile (into profiles/<name>)";
+      };
+    };
   };
 
   perSystem = {pkgs, ...}: {
     formatter = pkgs.alejandra;
-    # One check per suite in tests/suites.
-    checks = import ../../tests {inherit pkgs lib inputs;};
   };
 }

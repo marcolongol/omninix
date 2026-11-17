@@ -1,32 +1,12 @@
 {
-  description = "";
+  description = "OmniNix: NixOS machines, Macs and Home Manager users from a few directories";
 
+  # Only what OmniNix itself needs: everything here ends up in the lock file
+  # of every flake that uses it. The checks' inputs live in dev/flake.nix.
   inputs = {
     flake-parts.url = "github:hercules-ci/flake-parts";
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-26.05";
     systems.url = "github:nix-systems/default";
-
-    # For the tests only: consumers bring their own. Must match the nixpkgs
-    # release, or Home Manager warns.
-    home-manager = {
-      url = "github:nix-community/home-manager/release-26.05";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
-
-    # For the tests only, like home-manager.
-    nix-darwin = {
-      url = "github:nix-darwin/nix-darwin/nix-darwin-26.05";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
-
-    # For the tests only, like home-manager.
-    impermanence.url = "github:nix-community/impermanence";
-
-    # For the tests only, like home-manager.
-    sops-nix = {
-      url = "github:Mic92/sops-nix";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
   };
 
   outputs = {
@@ -36,10 +16,21 @@
   } @ inputs:
     flake-parts.lib.mkFlake {inherit inputs;} {
       systems = import systems;
-      imports = [./modules/flake];
+      imports = [
+        ./modules/flake
+        flake-parts.flakeModules.partitions
+      ];
 
       # OmniNix on itself: the roles it ships are exported like any
       # consumer's.
       omninix.rolesDir = ./roles;
+
+      # `checks` comes from the dev partition: a second evaluation that also
+      # has dev/flake.nix's inputs, fetched only when the checks are.
+      partitionedAttrs.checks = "dev";
+      partitions.dev = {
+        extraInputsFlake = ./dev;
+        module = ./tests/flake-module.nix;
+      };
     };
 }
