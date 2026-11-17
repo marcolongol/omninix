@@ -1,5 +1,5 @@
 # secretsPath on darwin hosts: `<host>.yaml` is the host's default sops file,
-# and shared.yaml is omninix.secrets.shared.
+# and each top-level key of shared.yaml is a secret.
 # There are no password secrets: macOS manages passwords itself. Applied
 # with importApply, like modules/nixos/secrets.nix.
 {fleet}: {

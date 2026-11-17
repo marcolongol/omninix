@@ -35,6 +35,18 @@
     userInputs = {};
   };
 
+  # The top-level key names of a sops YAML file. sops encrypts the values,
+  # not the key names, so they can be read without decrypting anything.
+  # `sops` (the file's own metadata) isn't a secret; nested keys aren't
+  # listed.
+  #
+  # Type: Path -> [String]
+  sopsKeys = file:
+    lib.filter (key: key != "sops") (lib.concatMap (line: let
+      key = builtins.match "([A-Za-z0-9_.-]+):.*" line;
+    in
+      lib.optionals (key != null) key) (lib.splitString "\n" (builtins.readFile file)));
+
   # The fleet record. `inputs` (the flake's) is required; every other
   # setting has a default above.
   #
@@ -68,6 +80,8 @@
 
     darwinHosts = lib.filterAttrs (name: _: isDarwin name) s.hosts;
 
+    sharedSecretsFile = secretFile "shared";
+
     # Everything wrong with the settings, as messages. Builders check this
     # once and throw them all together (`check`).
     errors =
@@ -89,7 +103,10 @@
           };'';
     unknownSettings = lib.attrNames (removeAttrs settings (["inputs"] ++ lib.attrNames defaults));
   in {
-    inherit inputs errors secretFile systemOf userSystemOf darwinHosts;
+    inherit inputs errors secretFile systemOf userSystemOf darwinHosts sharedSecretsFile;
+
+    # Every secret in shared.yaml, by name.
+    sharedSecrets = lib.optionals (sharedSecretsFile != null) (sopsKeys sharedSecretsFile);
     inherit (s) users packages secretsPath allowUnfree;
 
     nixosHosts = lib.filterAttrs (name: _: !(isDarwin name)) s.hosts;
@@ -143,6 +160,6 @@
     then value
     else throw "OmniNix: ${lib.concatStringsSep "\nOmniNix: " fleet.errors}";
 in {
-  inherit mkFleet check;
+  inherit mkFleet check sopsKeys;
   fleetDefaults = defaults;
 }

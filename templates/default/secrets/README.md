@@ -4,8 +4,8 @@ OmniNix reads two kinds of file here, both encrypted with sops:
 
 - `users/<user>.yaml`, key `hashed-password`: that user's login password.
 - `<host>.yaml`: the host's default sops file, for `sops.secrets.<name> = {};`.
-- `shared.yaml`: secrets every host uses. Point a secret at it with
-  `sops.secrets.<name>.sopsFile = config.omninix.secrets.shared;`.
+- `shared.yaml`: secrets every host uses. Each top-level key becomes
+  `sops.secrets.<key>` on every host; add `owner`, `mode`, etc. as usual.
 
 To give example-user a password:
 

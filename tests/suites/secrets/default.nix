@@ -2,7 +2,8 @@
 #   secrets/users/<user>.yaml  key `hashed-password`: that user's password,
 #                              and their default sops file in Home Manager
 #   secrets/<host>.yaml        the host's default sops file
-#   secrets/shared.yaml        every host's omninix.secrets.shared
+#   secrets/shared.yaml        declared on every host: each top-level key is
+#                              sops.secrets.<key> (omninix.secrets.shared)
 # Nothing is decrypted here: these are evaluation tests, checking paths.
 {
   lib,
@@ -152,5 +153,43 @@ in {
       desktop = secrets + "/shared.yaml";
       without = null;
     };
+  };
+
+  # Every top-level key in shared.yaml (but not sops' own metadata) is a
+  # secret on every host, read from it.
+  testSharedSecretsDeclared = {
+    expr = lib.mapAttrs (_: c: {
+      names = lib.attrNames (lib.filterAttrs (n: _: !(lib.hasPrefix "user-password-" n)) c.sops.secrets);
+      file = c.sops.secrets.wifi_psk.sopsFile;
+    }) {inherit laptop desktop;};
+    expected = let
+      on = {
+        names = ["shared-secret" "wifi_psk"];
+        file = secrets + "/shared.yaml";
+      };
+    in {
+      laptop = on;
+      desktop = on;
+    };
+  };
+
+  # A host adds to a shared secret's settings as usual.
+  testSharedSecretCustomised = {
+    expr = let
+      c =
+        (evalHosts {
+          hosts.h.sops.secrets.wifi_psk.owner = "wifi";
+          secretsPath = secrets;
+        }).h;
+    in {inherit (c.sops.secrets.wifi_psk) owner sopsFile;};
+    expected = {
+      owner = "wifi";
+      sopsFile = secrets + "/shared.yaml";
+    };
+  };
+
+  testSopsKeys = {
+    expr = lib.omninix.sopsKeys (secrets + "/shared.yaml");
+    expected = ["shared-secret" "wifi_psk"];
   };
 }
