@@ -2,7 +2,8 @@
 # gets `final` (the finished, extended lib) as its `lib`, so files can call
 # each other through `lib.omninix.*`.
 #
-# Internal only: the flake exports just `lib.omninix` (see modules/flake).
+# Internal: OmniNix's supported interface is the flake module
+# (flakeModules.default), which uses this lib by closure.
 #
 # The files, in the order a flake's settings flow through them:
 {inputs}:

@@ -141,11 +141,6 @@ in {
     {
       nixosConfigurations = omninixLib.mkNixosConfigurations settings;
 
-      # Exports: our own pieces, never internal/ or extra* (re-exporting
-      # another flake's pieces would pin them at our version).
-      roles = shareable.roles.exportable;
-      profiles = shareable.profiles.exportable;
-
       # mkDefault per entry: nixosModules is typed by flake-parts, and its
       # entries merge. A flake's own entry of the same name should replace
       # ours, not merge with it.
@@ -156,6 +151,10 @@ in {
     # empty outputs it might define itself.
     (lib.mkIf (fleet.users != {}) {homeConfigurations = omninixLib.mkHomeConfigurations settings;})
     (lib.mkIf (fleet.darwinHosts != {}) {darwinConfigurations = omninixLib.mkDarwinConfigurations settings;})
+    # Exports: our own pieces, never internal/ or extra* (re-exporting
+    # another flake's pieces would pin them at our version).
+    (lib.mkIf (shareable.roles.exportable != {}) {roles = shareable.roles.exportable;})
+    (lib.mkIf (shareable.profiles.exportable != {}) {profiles = shareable.profiles.exportable;})
     (lib.mkIf (shareable.darwinModules.exportable != {}) {darwinModules = shareable.darwinModules.exportable;})
     (lib.mkIf (shareable.homeModules.exportable != {}) {homeModules = shareable.homeModules.exportable;})
     # mkDefault: a flake's own overlays.packages replaces ours.

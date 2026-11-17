@@ -25,12 +25,16 @@
       # consumer's.
       omninix.rolesDir = ./roles;
 
-      # `checks` comes from the dev partition: a second evaluation that also
-      # has dev/flake.nix's inputs, fetched only when the checks are.
-      partitionedAttrs.checks = "dev";
+      # `checks` and `packages` (the docs) come from the dev partition: a
+      # second evaluation that also has dev/flake.nix's inputs, fetched only
+      # when those outputs are.
+      partitionedAttrs = {
+        checks = "dev";
+        packages = "dev";
+      };
       partitions.dev = {
         extraInputsFlake = ./dev;
-        module = ./tests/flake-module.nix;
+        module = ./dev/flake-module.nix;
       };
     };
 }

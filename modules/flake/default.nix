@@ -11,11 +11,6 @@ in {
   imports = [flakeModule];
 
   flake = {
-    # Only our namespace, not the whole extended lib: that would hand
-    # consumers a copy of nixpkgs' lib on our pin instead of theirs (nixpkgs
-    # warns against extending lib for exactly this reason).
-    lib = lib.omninix;
-
     flakeModules.default = flakeModule;
 
     # `nix flake init -t github:marcolongol/omninix` for a whole fleet, or
