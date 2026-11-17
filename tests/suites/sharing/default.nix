@@ -3,16 +3,17 @@
 # borrowed piece from silently reading the wrong flake.
 {
   lib,
-  inputs,
   evalHosts,
+  evalFlake,
+  failures,
   ...
 }: let
   their = ./their;
 
-  evalFlake = extra:
-    inputs.flake-parts.lib.mkFlake {inherit inputs;} {
-      imports = [inputs.self.flakeModules.default extra];
-      systems = ["x86_64-linux"];
+  # Our fixture flake, borrowing some of `their` pieces, plus `extra`.
+  ourFlake = extra:
+    evalFlake {
+      imports = [extra];
       omninix = {
         hostsDir = ./fixture/hosts;
         usersDir = ./fixture/users;
@@ -30,12 +31,19 @@
       };
     };
 
-  flake = evalFlake {};
+  flake = ourFlake {};
   laptop = flake.nixosConfigurations.laptop.config;
+  alice = laptop.home-manager.users.alice;
 
-  # OmniNix's failing assertions, as messages.
-  failures = config:
-    map (a: a.message) (lib.filter (a: !a.assertion && lib.hasPrefix "OmniNix:" a.message) config.assertions);
+  readsInputs = their + "/roles/reads-inputs.nix";
+
+  # A host (or, given `users`, a host home) that requires `option`.
+  requiring = option: {
+    by = "roles.desktop";
+    inherit option;
+    module = "the module declaring ${option}";
+  };
+  missing = option: "OmniNix: roles.desktop needs the module declaring ${option}; import it (the option `${option}` doesn't exist).";
 in {
   # --- internal/ -------------------------------------------------------------
 
@@ -73,9 +81,9 @@ in {
   testExtrasApplied = {
     expr = {
       roles = lib.attrNames laptop.roles;
-      profiles = lib.attrNames laptop.home-manager.users.alice.profiles;
+      profiles = lib.attrNames alice.profiles;
       motd = laptop.users.motd;
-      editor = laptop.home-manager.users.alice.home.sessionVariables.EDITOR;
+      editor = alice.home.sessionVariables.EDITOR;
     };
     expected = {
       roles = ["inline" "private" "public" "theirs"];
@@ -95,17 +103,10 @@ in {
 
   # It would get *our* inputs without a word; instead, reading them fails.
   testBorrowedPieceReadingInputsFails = {
-    expr =
-      (builtins.tryEval
-        (evalFlake {omninix.extraRoles.reads-inputs = their + "/roles/reads-inputs.nix";})
-        .nixosConfigurations
-        .laptop
-        .config
-        .environment
-        .etc
-        .theirs-input
-        .text)
-      .success;
+    expr = let
+      host = (ourFlake {omninix.extraRoles.reads-inputs = readsInputs;}).nixosConfigurations.laptop.config;
+    in
+      (builtins.tryEval host.environment.etc.theirs-input.text).success;
     expected = false;
   };
 
@@ -114,34 +115,16 @@ in {
     expr =
       (evalHosts {
         hosts.h = {};
-        nixosModules.reads-inputs = their + "/roles/reads-inputs.nix";
-      })
-      .h
-      .environment
-      .etc
-      .theirs-input
-      .text;
+        nixosModules.reads-inputs = readsInputs;
+      }).h.environment.etc.theirs-input.text;
     expected = "1";
   };
 
   # --- requirements ----------------------------------------------------------
 
   testRequirementMissing = {
-    expr =
-      failures
-      (evalHosts {
-        hosts.h = {
-          omninix.requirements = [
-            {
-              by = "roles.desktop";
-              option = "stylix.image";
-              module = "stylix's NixOS module";
-            }
-          ];
-        };
-      })
-      .h;
-    expected = ["OmniNix: roles.desktop needs stylix's NixOS module; import it (the option `stylix.image` doesn't exist)."];
+    expr = failures (evalHosts {hosts.h.omninix.requirements = [(requiring "stylix.image")];}).h;
+    expected = [(missing "stylix.image")];
   };
 
   testRequirementMet = {
@@ -150,16 +133,9 @@ in {
       (evalHosts {
         hosts.h = {
           imports = [{options.stylix.image = lib.mkOption {default = null;};}];
-          omninix.requirements = [
-            {
-              by = "roles.desktop";
-              option = "stylix.image";
-              module = "stylix's NixOS module";
-            }
-          ];
+          omninix.requirements = [(requiring "stylix.image")];
         };
-      })
-      .h;
+      }).h;
     expected = [];
   };
 
@@ -173,20 +149,8 @@ in {
           omninix.hostUsers.alice.enable = true;
           users.users.alice.hashedPassword = "$y$fake";
         };
-        users.alice = {
-          omninix.requirements = [
-            {
-              by = "profiles.editor";
-              option = "programs.nixievim.enable";
-              module = "nixievim's Home Manager module";
-            }
-          ];
-        };
-      })
-      .h
-      .home-manager
-      .users
-      .alice;
-    expected = ["OmniNix: profiles.editor needs nixievim's Home Manager module; import it (the option `programs.nixievim.enable` doesn't exist)."];
+        users.alice.omninix.requirements = [(requiring "programs.nixievim.enable")];
+      }).h.home-manager.users.alice;
+    expected = [(missing "programs.nixievim.enable")];
   };
 }

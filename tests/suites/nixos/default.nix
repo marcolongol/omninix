@@ -38,8 +38,7 @@ in {
   testPlatformMismatchThrows = {
     expr =
       (builtins.tryEval
-        (evalHosts {hosts.pi = {nixpkgs.hostPlatform = lib.mkDefault "aarch64-linux";};}).pi.nixpkgs.hostPlatform.system)
-      .success;
+        (evalHosts {hosts.pi = {nixpkgs.hostPlatform = lib.mkDefault "aarch64-linux";};}).pi.nixpkgs.hostPlatform.system).success;
     expected = false;
   };
 
@@ -54,12 +53,7 @@ in {
         }: {
           environment.etc.probe.text = "${hostName} ${toString (inputs ? nixpkgs)}";
         };
-      })
-      .laptop
-      .environment
-      .etc
-      .probe
-      .text;
+      }).laptop.environment.etc.probe.text;
     expected = "laptop 1";
   };
 
@@ -77,8 +71,7 @@ in {
       (builtins.tryEval (evalHosts {
         hosts.laptop = {};
         hostSystems.lpatop = "aarch64-linux";
-      }))
-      .success;
+      })).success;
     expected = false;
   };
 }

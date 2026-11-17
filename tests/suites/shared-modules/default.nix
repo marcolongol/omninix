@@ -76,12 +76,7 @@ in {
         inherit inputs;
         users.alice = {profiles.git.enable = true;};
         profiles.git = gitProfile;
-      })
-      .alice
-      .config
-      .programs
-      .git
-      .enable;
+      }).alice.config.programs.git.enable;
     expected = true;
   };
 
@@ -107,8 +102,7 @@ in {
         hosts.h = {};
         profiles.git = gitProfile;
         inputs = removeAttrs inputs ["home-manager"];
-      }))
-      .success;
+      })).success;
     expected = false;
   };
 }

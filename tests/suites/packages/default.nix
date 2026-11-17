@@ -3,15 +3,16 @@
 {
   lib,
   inputs,
+  evalFlake,
   ...
 }: let
   system = "x86_64-linux";
   fixture = ./fixture;
 
-  evalFlake = extra:
-    inputs.flake-parts.lib.mkFlake {inherit inputs;} {
-      imports = [inputs.self.flakeModules.default extra];
-      systems = [system];
+  # The fixture flake, plus `extra` (more modules or settings).
+  fixtureFlake = extra:
+    evalFlake {
+      imports = [extra];
       omninix = {
         hostsDir = fixture + "/hosts";
         usersDir = fixture + "/users";
@@ -20,11 +21,11 @@
       };
     };
 
-  flake = evalFlake {};
+  flake = fixtureFlake {};
 
   # A flake whose perSystem exposes its pkgs, so tests can read it.
   withProbe = extra:
-    evalFlake {
+    fixtureFlake {
       imports = [extra];
       perSystem = {pkgs, ...}: {legacyPackages.pkgs = pkgs;};
     };
@@ -107,21 +108,14 @@ in {
           system.stateVersion = "26.05";
           nixpkgs.config.allowUnfree = true;
         };
-      })
-      .h
-      .pkgs
-      .config
-      .allowUnfree;
+      }).h.pkgs.config.allowUnfree;
     expected = true;
   };
 
   # Nothing set: no packages and no overlays outputs.
   testNothingConfigured = {
     expr = let
-      f = inputs.flake-parts.lib.mkFlake {inherit inputs;} {
-        imports = [inputs.self.flakeModules.default];
-        systems = [system];
-      };
+      f = evalFlake {};
     in {
       packages = f.packages.${system};
       overlays = f ? overlays && f.overlays != {};

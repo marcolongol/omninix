@@ -3,15 +3,11 @@
 {
   lib,
   evalHosts,
+  failures,
   ...
 }: let
   # Evaluate one host and return its config.
   host = module: (evalHosts {hosts.test = module;}).test;
-
-  # OmniNix's failing assertions, as their messages. NixOS adds its own
-  # assertions, so keep only ours.
-  failures = config:
-    map (a: a.message) (lib.filter (a: !a.assertion && lib.hasPrefix "OmniNix:" a.message) config.assertions);
 
   alice = extra: {omninix.hostUsers.alice = {enable = true;} // extra;};
   withPassword = {users.users.alice.hashedPassword = "$y$fake";};
@@ -25,9 +21,7 @@ in {
           alice.enable = true;
           bob.enable = false;
         };
-      })
-      .omninix
-      .activeUsers;
+      }).omninix.activeUsers;
     expected = ["alice"];
   };
 
@@ -49,11 +43,7 @@ in {
       (host {
         imports = [(alice {extraGroups = ["wheel"];})];
         omninix.defaultUserGroups = ["networkmanager"];
-      })
-      .users
-      .users
-      .alice
-      .extraGroups;
+      }).users.users.alice.extraGroups;
     expected = ["networkmanager" "wheel"];
   };
 
@@ -143,9 +133,7 @@ in {
       (host {
         imports = [(alice {}) withPassword];
         omninix.allowInsecureBootstrap = true;
-      })
-      .users
-      .allowNoPasswordLogin;
+      }).users.allowNoPasswordLogin;
     expected = false;
   };
 }

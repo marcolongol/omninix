@@ -2,7 +2,7 @@
 # directories and gets its fleet, with the pieces exported.
 {
   lib,
-  inputs,
+  evalFlake,
   ...
 }: let
   fixture = ./fixture;
@@ -16,15 +16,14 @@
     homeModulesDir = fixture + "/home-modules";
   };
 
-  # A consumer flake: our module, plus `extra` (more modules or settings).
-  evalFlake = extra:
-    inputs.flake-parts.lib.mkFlake {inherit inputs;} {
-      imports = [inputs.self.flakeModules.default extra];
-      systems = ["x86_64-linux"];
+  # The fixture flake, plus `extra` (more modules or settings).
+  fixtureFlake = extra:
+    evalFlake {
+      imports = [extra];
       omninix = settings;
     };
 
-  flake = evalFlake {};
+  flake = fixtureFlake {};
   laptop = flake.nixosConfigurations.laptop.config;
 in {
   testOutputs = {
@@ -85,7 +84,7 @@ in {
 
   testSystemsForwarded = {
     expr = let
-      f = evalFlake {
+      f = fixtureFlake {
         omninix = {
           hostSystems.laptop = "aarch64-linux";
           userSystems.alice = "aarch64-darwin";
@@ -105,8 +104,8 @@ in {
   # there.
   testInputsForwarded = {
     expr = {
-      host = (builtins.tryEval (evalFlake {omninix.hostInputs.lpatop = {};}).nixosConfigurations).success;
-      home = (builtins.tryEval (evalFlake {omninix.userInputs.alcie = {};}).homeConfigurations).success;
+      host = (builtins.tryEval (fixtureFlake {omninix.hostInputs.lpatop = {};}).nixosConfigurations).success;
+      home = (builtins.tryEval (fixtureFlake {omninix.userInputs.alcie = {};}).homeConfigurations).success;
     };
     expected = {
       host = false;
@@ -117,10 +116,7 @@ in {
   # A flake that sets no directories gets no fleet, and no stray outputs.
   testNothingConfigured = {
     expr = let
-      f = inputs.flake-parts.lib.mkFlake {inherit inputs;} {
-        imports = [inputs.self.flakeModules.default];
-        systems = ["x86_64-linux"];
-      };
+      f = evalFlake {};
     in {
       hosts = f.nixosConfigurations;
       hasHomes = f ? homeConfigurations;
@@ -139,12 +135,9 @@ in {
       (lib.evalModules {
         modules = [
           {options.users.motd = lib.mkOption {type = lib.types.str;};}
-          (evalFlake {flake.nixosModules.motd = {users.motd = "mine";};}).nixosModules.motd
+          (fixtureFlake {flake.nixosModules.motd = {users.motd = "mine";};}).nixosModules.motd
         ];
-      })
-      .config
-      .users
-      .motd;
+      }).config.users.motd;
     expected = "mine";
   };
 }

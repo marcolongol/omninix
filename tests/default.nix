@@ -1,7 +1,8 @@
 # The flake checks: the eval suites, plus the builds.
 #
 # Every entry of suites/ (a `<name>.nix` file or a `<name>/` directory with
-# default.nix) is a suite: a function taking { lib, inputs, evalHosts, ... } and
+# default.nix) is a suite: a function taking { lib, inputs, evalHosts,
+# evalFlake, failures, ... } (the helpers below) and
 # returning { testFoo = { expr = …; expected = …; }; … }. It becomes
 # checks.<system>.<name>, so adding a suite needs no wiring.
 #
@@ -30,7 +31,22 @@
           args.hosts;
       }));
 
-  # Turn a test set into a derivation that builds if every case passes,
+  # A consumer flake: OmniNix's flake module plus `module` (its omninix
+  # settings, and anything else), for x86_64-linux.
+  #
+  # Example: (evalFlake {omninix.hostsDir = ./hosts;}).nixosConfigurations
+  evalFlake = module:
+    inputs.flake-parts.lib.mkFlake {inherit inputs;} {
+      imports = [inputs.self.flakeModules.default module];
+      systems = ["x86_64-linux"];
+    };
+
+  # OmniNix's failing assertions in a host or home config, as messages.
+  # NixOS and Home Manager add their own; only ours start with "OmniNix:".
+  failures = config:
+    map (a: a.message) (lib.filter (a: !a.assertion && lib.hasPrefix "OmniNix:" a.message) config.assertions);
+
+  # Turn a test set that builds if every case passes,
   # printing each failure otherwise.
   mkSuite = name: tests: let
     failures = lib.runTests tests;
@@ -55,7 +71,7 @@
     '';
 
   suites =
-    lib.mapAttrs (name: suite: mkSuite name (import suite {inherit lib inputs evalHosts;}))
+    lib.mapAttrs (name: suite: mkSuite name (import suite {inherit lib inputs evalHosts evalFlake failures;}))
     (lib.omninix.discoverNixFiles ["default.nix"] ./suites);
 
   builds =

@@ -34,15 +34,7 @@
           };
         };
       };
-    })
-    .wipe
-    .config
-    .boot
-    .initrd
-    .systemd
-    .services
-    .rollback-root
-    .script;
+    }).wipe.config.boot.initrd.systemd.services.rollback-root.script;
 
   plain = pkgs.writeText "rollback-root.sh" (scriptFor {});
   # wipe.device pointing elsewhere than fileSystems."/".device.

@@ -7,6 +7,7 @@
   lib,
   inputs,
   evalHosts,
+  failures,
   ...
 }: let
   secrets = ./secrets;
@@ -23,10 +24,6 @@
     secretsPath = secrets;
   };
   inherit (hosts) laptop desktop;
-
-  # OmniNix's failing assertions, as messages.
-  failures = config:
-    map (a: a.message) (lib.filter (a: !a.assertion && lib.hasPrefix "OmniNix:" a.message) config.assertions);
 
   # Whether `path` in a nixosSystem's options was given a value.
   isDefined = host: path:
@@ -91,10 +88,7 @@ in {
       (evalHosts {
         hosts.laptop = {sops.defaultSopsFile = ./secrets/users/alice.yaml;};
         secretsPath = secrets;
-      })
-      .laptop
-      .sops
-      .defaultSopsFile;
+      }).laptop.sops.defaultSopsFile;
     expected = ./secrets/users/alice.yaml;
   };
 
@@ -107,11 +101,7 @@ in {
           inherit inputs;
           users.alice = {};
           secretsPath = secrets;
-        })
-        .alice
-        .config
-        .sops
-        .defaultSopsFile;
+        }).alice.config.sops.defaultSopsFile;
     };
     expected = {
       host = secrets + "/users/alice.yaml";
@@ -141,8 +131,7 @@ in {
         hosts.laptop = {};
         secretsPath = secrets;
         inputs = removeAttrs inputs ["sops-nix"];
-      }))
-      .success;
+      })).success;
     expected = false;
   };
 }

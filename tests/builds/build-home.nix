@@ -9,7 +9,5 @@
       inherit inputs;
       defaultSystem = pkgs.stdenv.hostPlatform.system;
       users.alice = {home.file.greeting.text = "hi";};
-    })
-    .alice
-    .activationPackage;
+    }).alice.activationPackage;
 }

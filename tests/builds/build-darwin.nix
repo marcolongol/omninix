@@ -15,10 +15,5 @@ lib.optionalAttrs pkgs.stdenv.hostPlatform.isDarwin {
         omninix.hostUsers.alice.enable = true;
       };
       users.alice = {home.file.greeting.text = "hi";};
-    })
-    .mac
-    .config
-    .system
-    .build
-    .toplevel;
+    }).mac.config.system.build.toplevel;
 }

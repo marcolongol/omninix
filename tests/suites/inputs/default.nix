@@ -123,8 +123,7 @@ in {
       (builtins.tryEval (evalHosts {
         hosts.laptop = {};
         hostInputs.pie = {};
-      }))
-      .success;
+      })).success;
     expected = false;
   };
 
@@ -134,8 +133,7 @@ in {
         inherit inputs;
         users.alice = {};
         userInputs.alcie = {};
-      }))
-      .success;
+      })).success;
     expected = false;
   };
 }

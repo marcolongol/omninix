@@ -3,14 +3,15 @@
 {
   lib,
   inputs,
+  evalFlake,
   ...
 }: let
   fixture = ./fixture;
 
-  evalFlake = extra:
-    inputs.flake-parts.lib.mkFlake {inherit inputs;} {
-      imports = [inputs.self.flakeModules.default extra];
-      systems = ["x86_64-linux"];
+  # The fixture flake, plus `extra` (more modules or settings).
+  fixtureFlake = extra:
+    evalFlake {
+      imports = [extra];
       omninix = {
         hostsDir = fixture + "/hosts";
         usersDir = fixture + "/users";
@@ -22,7 +23,7 @@
       };
     };
 
-  flake = evalFlake {};
+  flake = fixtureFlake {};
   mac = flake.darwinConfigurations.mac.config;
   laptop = flake.nixosConfigurations.laptop.config;
 
@@ -103,12 +104,7 @@ in {
               extraGroups = ["admin"];
             };
           };
-        })
-        .mac
-        .config
-        .omninix
-        .activeUsers)
-      .success;
+        }).mac.config.omninix.activeUsers).success;
     expected = false;
   };
 
@@ -141,15 +137,13 @@ in {
           inputs = removeAttrs inputs ["nix-darwin"];
           hostSystems.mac = "aarch64-darwin";
           hosts.mac = {};
-        })
-      .mac)
-      .success;
+        }).mac).success;
     expected = false;
   };
 
   # A misspelt host is caught across both platforms.
   testUnknownHostAcrossPlatforms = {
-    expr = (builtins.tryEval (evalFlake {omninix.hostSystems.mca = "aarch64-darwin";}).darwinConfigurations).success;
+    expr = (builtins.tryEval (fixtureFlake {omninix.hostSystems.mca = "aarch64-darwin";}).darwinConfigurations).success;
     expected = false;
   };
 }

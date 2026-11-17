@@ -11,10 +11,11 @@
   # file and a directory. Kept separate from discoverNixFiles so the clash
   # can be tested as data.
   #
-  # Type: [String] -> Path -> { pieces :: AttrSet; clashes :: [String]; }
+  # Type: [String] -> Path? -> { pieces :: AttrSet; clashes :: [String]; }
   scanNixFiles = markers: dir: let
+    # An unset (null) or missing directory has no pieces.
     entries =
-      if builtins.pathExists dir
+      if dir != null && builtins.pathExists dir
       then builtins.readDir dir
       else {};
 
@@ -32,10 +33,10 @@
     clashes = lib.attrNames (builtins.intersectAttrs files dirs);
   };
 
-  # The pieces in `dir`; {} if it doesn't exist. Throws when a file and a
+  # The pieces in `dir`; {} if it's unset or doesn't exist. Throws when a file and a
   # directory share a name, since either choice would silently drop one.
   #
-  # Type: [String] -> Path -> AttrSet
+  # Type: [String] -> Path? -> AttrSet
   #
   # Example:
   #   hosts/{laptop.nix, server/default.nix}
@@ -53,7 +54,7 @@
   # only the former are exported. "internal" is never a piece itself, and a
   # name in both places throws instead of one silently winning.
   #
-  # Type: [String] -> Path -> { all :: AttrSet; exportable :: AttrSet; }
+  # Type: [String] -> Path? -> { all :: AttrSet; exportable :: AttrSet; }
   #
   # Example:
   #   roles/{desktop.nix, internal/site.nix}
@@ -61,7 +62,7 @@
   #   => { all = { desktop = …; site = …; }; exportable = { desktop = …; }; }
   discoverPieces = markers: dir: let
     top = removeAttrs (discoverNixFiles markers dir) ["internal"];
-    internal = discoverNixFiles markers (dir + "/internal");
+    internal = lib.optionalAttrs (dir != null) (discoverNixFiles markers (dir + "/internal"));
     clashes = lib.attrNames (builtins.intersectAttrs top internal);
   in
     if clashes != []

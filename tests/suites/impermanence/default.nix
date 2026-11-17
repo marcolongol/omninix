@@ -4,6 +4,7 @@
   lib,
   inputs,
   evalHosts,
+  failures,
   ...
 }: let
   role = inputs.self.roles.impermanent;
@@ -33,8 +34,7 @@
       roles.impermanent = role;
       nixosModules = lib.optionalAttrs withImpermanence {inherit (inputs.impermanence.nixosModules) impermanence;};
       users.alice = {omninix.persistence.directories = [".ssh"];};
-    })
-    .h;
+    }).h;
 
   persisted = config: let
     p = config.environment.persistence."/persist";
@@ -42,9 +42,6 @@
     directories = map (d: d.directory) p.directories;
     files = map (f: f.file) p.files;
   };
-
-  failures = config:
-    map (a: a.message) (lib.filter (a: !a.assertion && lib.hasPrefix "OmniNix:" a.message) config.assertions);
 
   wipe = extra:
     host {
@@ -85,8 +82,7 @@ in {
           hardware.bluetooth.enable = true;
           roles.impermanent.persistCoredumps = true;
         };
-      }))
-      .directories;
+      })).directories;
     expected = ["/var/log" "/var/lib/nixos" "/var/lib/bluetooth" "/var/lib/systemd/coredump" "/etc/NetworkManager/system-connections"];
   };
 
@@ -108,12 +104,7 @@ in {
       (lib.omninix.mkHomeConfigurations {
         inherit inputs;
         users.alice = {omninix.persistence.directories = [".ssh"];};
-      })
-      .alice
-      .config
-      .omninix
-      .persistence
-      .directories;
+      }).alice.config.omninix.persistence.directories;
     expected = [".ssh"];
   };
 

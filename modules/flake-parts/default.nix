@@ -18,44 +18,32 @@
 
   # --- 1. directories -> pieces ---------------------------------------------
 
-  # Every directory becomes { all; exportable; }: `all` is used here,
-  # `exportable` is exported. Shareable pieces also take an internal/
-  # subdirectory (used, never exported); the rest are plain. Empty when unset.
-  shareable = markers: dir:
-    if dir == null
-    then {
-      all = {};
-      exportable = {};
-    }
-    else omninixLib.discoverPieces markers dir;
-  plain = dir: let
-    pieces =
-      if dir == null
-      then {}
-      else omninixLib.discoverNixFiles ["default.nix"] dir;
-  in {
-    all = pieces;
-    exportable = pieces;
+  # Unset directories (null) are simply empty.
+  plain = lib.mapAttrs (_: omninixLib.discoverNixFiles ["default.nix"]) {
+    hosts = cfg.hostsDir;
+    users = cfg.usersDir;
+    packages = cfg.packagesDir;
+    overlays = cfg.overlaysDir;
   };
 
-  found = {
-    hosts = plain cfg.hostsDir;
-    users = plain cfg.usersDir;
-    packages = plain cfg.packagesDir;
-    overlays = plain cfg.overlaysDir;
+  # Shareable pieces, as { all; exportable; }: their internal/ subdirectory
+  # is used here (`all`) but never exported (`exportable`).
+  shareable =
+    lib.mapAttrs (_: omninixLib.discoverPieces ["default.nix"]) {
+      profiles = cfg.profilesDir;
+      nixosModules = cfg.nixosModulesDir;
+      darwinModules = cfg.darwinModulesDir;
+      homeModules = cfg.homeModulesDir;
+    }
     # A role directory may hold only a darwin half.
-    roles = shareable ["default.nix" "darwin.nix"] cfg.rolesDir;
-    profiles = shareable ["default.nix"] cfg.profilesDir;
-    nixosModules = shareable ["default.nix"] cfg.nixosModulesDir;
-    darwinModules = shareable ["default.nix"] cfg.darwinModulesDir;
-    homeModules = shareable ["default.nix"] cfg.homeModulesDir;
-  };
+    // {roles = omninixLib.discoverPieces ["default.nix" "darwin.nix"] cfg.rolesDir;};
 
   # --- 2. pieces + options -> settings ----------------------------------------
 
   settings =
     {inherit inputs;}
-    // lib.mapAttrs (_: pieces: pieces.all) found
+    // plain
+    // lib.mapAttrs (_: pieces: pieces.all) shareable
     // {
       inherit
         (cfg)
@@ -155,21 +143,21 @@ in {
 
       # Exports: our own pieces, never internal/ or extra* (re-exporting
       # another flake's pieces would pin them at our version).
-      roles = found.roles.exportable;
-      profiles = found.profiles.exportable;
+      roles = shareable.roles.exportable;
+      profiles = shareable.profiles.exportable;
 
       # mkDefault per entry: nixosModules is typed by flake-parts, and its
       # entries merge. A flake's own entry of the same name should replace
       # ours, not merge with it.
-      nixosModules = lib.mapAttrs (_: lib.mkDefault) found.nixosModules.exportable;
+      nixosModules = lib.mapAttrs (_: lib.mkDefault) shareable.nixosModules.exportable;
     }
 
     # Only when there is something to put there, so a flake doesn't get
     # empty outputs it might define itself.
     (lib.mkIf (fleet.users != {}) {homeConfigurations = omninixLib.mkHomeConfigurations settings;})
     (lib.mkIf (fleet.darwinHosts != {}) {darwinConfigurations = omninixLib.mkDarwinConfigurations settings;})
-    (lib.mkIf (found.darwinModules.exportable != {}) {darwinModules = found.darwinModules.exportable;})
-    (lib.mkIf (found.homeModules.exportable != {}) {homeModules = found.homeModules.exportable;})
+    (lib.mkIf (shareable.darwinModules.exportable != {}) {darwinModules = shareable.darwinModules.exportable;})
+    (lib.mkIf (shareable.homeModules.exportable != {}) {homeModules = shareable.homeModules.exportable;})
     # mkDefault: a flake's own overlays.packages replaces ours.
     (lib.mkIf (fleet.packages != {}) {overlays.packages = lib.mkDefault (omninixLib.exportOverlay fleet.packages);})
   ];

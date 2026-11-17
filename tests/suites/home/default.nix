@@ -6,86 +6,73 @@
   evalHosts,
   ...
 }: let
-  # A host enabling `names` (with a password, so nothing else fails).
-  hostWith = names: {
-    omninix.hostUsers = lib.genAttrs names (_: {enable = true;});
-    users.users = lib.genAttrs names (_: {hashedPassword = "$y$fake";});
-  };
-
-  # One host, `test`, with `enabled` users and the given user files.
+  # A host `test` enabling `enabled` (with passwords, so nothing else fails),
+  # given these user files, optionally without a home-manager input.
   host = {
     enabled,
     users ? {},
-    flakeInputs ? inputs,
+    withHomeManager ? true,
   }:
     (evalHosts {
-      hosts.test = hostWith enabled;
       inherit users;
-      inputs = flakeInputs;
+      inputs =
+        if withHomeManager
+        then inputs
+        else removeAttrs inputs ["home-manager"];
+      hosts.test = {
+        omninix.hostUsers = lib.genAttrs enabled (_: {enable = true;});
+        users.users = lib.genAttrs enabled (_: {hashedPassword = "$y$fake";});
+      };
     })
     .test;
+
+  # The host's homes, by user.
+  homes = args: (host args).home-manager.users;
 
   aliceFile = {home.file.greeting.text = "hi";};
 in {
   testUserFileApplied = {
     expr =
-      (host {
+      (homes {
         enabled = ["alice"];
         users.alice = aliceFile;
-      })
-      .home-manager
-      .users
-      .alice
-      .home
-      .file
-      .greeting
-      .text;
+      }).alice.home.file.greeting.text;
     expected = "hi";
   };
 
   # A user file only applies where the user is enabled.
   testInactiveUserHasNoHome = {
     expr =
-      (host {
+      homes {
         enabled = [];
         users.alice = aliceFile;
-      })
-      .home-manager
-      .users
-      ? alice;
+      } ? alice;
     expected = false;
   };
 
-  # An active user without a file still gets a home (for profiles later).
+  # An active user without a file still gets a home (for profiles).
   testActiveUserWithoutFileGetsHome = {
-    expr = lib.attrNames (host {enabled = ["bob"];}).home-manager.users;
+    expr = lib.attrNames (homes {enabled = ["bob"];});
     expected = ["bob"];
   };
 
   testStateVersionDefault = {
-    expr = (host {enabled = ["bob"];}).home-manager.users.bob.home.stateVersion;
+    expr = (homes {enabled = ["bob"];}).bob.home.stateVersion;
     expected = "26.05";
   };
 
   testUserCanSetStateVersion = {
     expr =
-      (host {
+      (homes {
         enabled = ["alice"];
         users.alice = {home.stateVersion = "25.11";};
-      })
-      .home-manager
-      .users
-      .alice
-      .home
-      .stateVersion;
+      }).alice.home.stateVersion;
     expected = "25.11";
   };
 
   # Homes use the host's pkgs and install into the user's profile.
   testSharedPkgs = {
-    expr = let
-      hm = (host {enabled = ["bob"];}).home-manager;
-    in {inherit (hm) useGlobalPkgs useUserPackages;};
+    expr = {inherit ((host {enabled = ["bob"];}).home-manager) useGlobalPkgs useUserPackages;};
     expected = {
       useGlobalPkgs = true;
       useUserPackages = true;
@@ -95,17 +82,10 @@ in {
   # User files receive the flake inputs, like host files do.
   testUserFileGetsInputs = {
     expr =
-      (host {
+      (homes {
         enabled = ["alice"];
         users.alice = {inputs, ...}: {home.file.probe.text = toString (inputs ? nixpkgs);};
-      })
-      .home-manager
-      .users
-      .alice
-      .home
-      .file
-      .probe
-      .text;
+      }).alice.home.file.probe.text;
     expected = "1";
   };
 
@@ -115,9 +95,8 @@ in {
       (builtins.tryEval (host {
         enabled = ["alice"];
         users.alice = aliceFile;
-        flakeInputs = removeAttrs inputs ["home-manager"];
-      }))
-      .success;
+        withHomeManager = false;
+      })).success;
     expected = false;
   };
 
@@ -126,10 +105,8 @@ in {
     expr =
       (host {
         enabled = ["bob"];
-        flakeInputs = removeAttrs inputs ["home-manager"];
-      })
-      .omninix
-      .activeUsers;
+        withHomeManager = false;
+      }).omninix.activeUsers;
     expected = ["bob"];
   };
 }
