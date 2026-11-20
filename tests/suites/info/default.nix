@@ -39,6 +39,12 @@
   hasInfo = config: lib.any (p: (p.name or "") == "omninix-info") config.environment.systemPackages;
 
   data = (host {}).omninix.info.data;
+
+  # Whether the host's omninix-info script uses gum.
+  usesGum = config: let
+    command = lib.findFirst (p: (p.name or "") == "omninix-info") null config.environment.systemPackages;
+  in
+    lib.hasInfix "/bin/gum" command.drvAttrs.text || lib.hasInfix "-gum-" command.drvAttrs.text;
 in {
   testInstalledByDefault = {
     expr = hasInfo (host {});
@@ -55,6 +61,18 @@ in {
     expected = {
       installed = false;
       revision = null;
+    };
+  };
+
+  # Fancy (gum) unless turned off; plain has no gum.
+  testFancyByDefault = {
+    expr = {
+      fancy = usesGum (host {});
+      plain = usesGum (host {omninix.info.fancy = false;});
+    };
+    expected = {
+      fancy = true;
+      plain = false;
     };
   };
 

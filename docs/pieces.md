@@ -49,7 +49,8 @@ OmniNix sets, and the host can override:
   old nixpkgs is, the generation, whether a reboot is due (`--json` for
   scripts). It also sets `system.configurationRevision` to the commit, so
   every commit is a new system for every host. `omninix.info.enable = false`
-  turns both off.
+  turns both off; `omninix.info.fancy = false` keeps the command but draws
+  it without gum (about 15 MiB).
 
 Host files receive `hostName` and `inputs` (your flake's inputs) as arguments.
 

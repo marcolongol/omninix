@@ -63,6 +63,12 @@ in {
       description = "Install `omninix-info` (`--json` for scripts), and set system.configurationRevision to the config's commit. Every commit is then a new system, even one that changes nothing for this host; turn this off to avoid that.";
     };
 
+    fancy = lib.mkOption {
+      type = lib.types.bool;
+      default = true;
+      description = "Draw omninix-info's output with gum (boxes, colours). It adds gum (about 15 MiB) to the host; off, the output is plain text with colours and no extra dependencies.";
+    };
+
     data = lib.mkOption {
       type = lib.types.attrsOf lib.types.anything;
       readOnly = true;
@@ -73,7 +79,10 @@ in {
   };
 
   config = lib.mkIf cfg.enable {
-    environment.systemPackages = [(pkgs.callPackage ./command.nix {info = cfg.data;})];
+    environment.systemPackages = [(pkgs.callPackage ./command.nix {
+        inherit (cfg) fancy;
+        info = cfg.data;
+      })];
     # Also shown by nixos-version --configuration-revision (darwin-version on
     # Macs).
     system.configurationRevision = lib.mkDefault (inputs.self.rev or inputs.self.dirtyRev or null);

@@ -66,7 +66,9 @@ in
 
         with subtest("omninix-info runs, and reads the running system"):
             import json
-            print(machine.succeed("omninix-info"))
+            text = machine.succeed("omninix-info")
+            print(text)
+            assert "╭" in text and "no reboot needed" in text, text
             info = json.loads(machine.succeed("omninix-info --json"))
             assert info["host"] == "machine", info
             assert info["users"]["alice"]["groups"] == ["wheel"], info
