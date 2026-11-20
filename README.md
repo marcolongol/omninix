@@ -112,10 +112,11 @@ exists.
 4. [Passwords and secrets](docs/secrets.md): sops-nix by convention, or your own.
 5. [Impermanence and root wipe](docs/impermanence.md): keep `/persist`, wipe the rest.
 6. [Packages, overlays and inputs](docs/packages.md): your packages everywhere, a different nixpkgs per host.
-7. [Sharing between flakes](docs/sharing.md): use other fleets' roles and profiles, and share yours.
-8. [Third-party modules](docs/third-party-modules.md): disko, stylix and the rest.
-9. [Deploying](docs/deployment.md): over SSH, with comin, or deploy-rs.
-10. [Migrating an existing flake](docs/migrating.md): one host at a time, proving nothing changed.
+7. [Containers and images](docs/containers.md): distroless images from your packages, hosts as Proxmox LXC containers.
+8. [Sharing between flakes](docs/sharing.md): use other fleets' roles and profiles, and share yours.
+9. [Third-party modules](docs/third-party-modules.md): disko, stylix and the rest.
+10. [Deploying](docs/deployment.md): over SSH, with comin, or deploy-rs.
+11. [Migrating an existing flake](docs/migrating.md): one host at a time, proving nothing changed.
 
 [Reference](docs/reference.md): outputs, defaults, and every option.
 

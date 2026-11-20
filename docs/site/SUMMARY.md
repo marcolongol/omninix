@@ -10,6 +10,7 @@
 - [Passwords and secrets](secrets.md)
 - [Impermanence and root wipe](impermanence.md)
 - [Packages, overlays and inputs](packages.md)
+- [Containers and images](containers.md)
 - [Sharing between flakes](sharing.md)
 - [Third-party modules](third-party-modules.md)
 - [Deploying](deployment.md)
