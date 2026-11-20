@@ -22,5 +22,10 @@ inputs.nixpkgs.lib.extend (final: _: {
     # the fleet -> NixOS and nix-darwin systems
     // (import ./hosts.nix {lib = final;})
     # the fleet -> standalone homes
-    // (import ./home.nix {lib = final;});
+    // (import ./home.nix {lib = final;})
+    // {
+      # OmniNix's own commit, for omninix-info: these are OmniNix's inputs,
+      # not a consumer's.
+      revision = inputs.self.shortRev or inputs.self.dirtyShortRev or "unknown";
+    };
 })

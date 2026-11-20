@@ -3,6 +3,7 @@
 #   - alice exists, with wheel (granted) and without docker (never granted)
 #   - her password came from sops: decrypted before users were created
 #   - her home was activated by Home Manager
+#   - omninix-info runs, and reads the running system
 # Linux only: it boots a QEMU guest.
 {
   pkgs,
@@ -62,6 +63,15 @@ in
         with subtest("Home Manager activated her home"):
             machine.wait_for_unit("home-manager-alice.service")
             machine.succeed("test \"$(cat /home/alice/greeting)\" = hi")
+
+        with subtest("omninix-info runs, and reads the running system"):
+            import json
+            print(machine.succeed("omninix-info"))
+            info = json.loads(machine.succeed("omninix-info --json"))
+            assert info["host"] == "machine", info
+            assert info["users"]["alice"]["groups"] == ["wheel"], info
+            assert info["rebootNeeded"] is False, info
+            assert info["kernel"] == machine.succeed("uname -r").strip(), info
       '';
     };
   }

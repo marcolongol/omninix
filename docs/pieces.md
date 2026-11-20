@@ -44,6 +44,12 @@ OmniNix sets, and the host can override:
   `omninix.defaultSystem` (`x86_64-linux`). If your
   `hardware-configuration.nix` says a different platform, the build stops with
   a conflict instead of picking one.
+- `omninix-info`, a command showing what the host was built from and what
+  it's running: roles, users and their profiles, the config's commit and how
+  old nixpkgs is, the generation, whether a reboot is due (`--json` for
+  scripts). It also sets `system.configurationRevision` to the commit, so
+  every commit is a new system for every host. `omninix.info.enable = false`
+  turns both off.
 
 Host files receive `hostName` and `inputs` (your flake's inputs) as arguments.
 

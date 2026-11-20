@@ -45,7 +45,8 @@
   #     hardware-configuration.nix that disagrees is a conflict, not a
   #     silent override)
   #   - `hostName` and `inputs` (with its hostInputs on top) as arguments
-  #   - OmniNix's module for the platform, and the fleet's overlays
+  #   - OmniNix's module for the platform, the fleet's overlays, and
+  #     omninix-info
   #   - the platform's role halves and always-on modules
   #   - with a sops-nix input: sops-nix, wired to secretsPath
   #   - with a home-manager input: a home for every active user
@@ -65,6 +66,7 @@
           nixpkgs.hostPlatform = lib.mkDefault (fleet.systemOf hostName);
         }
         (lib.omninix.nixpkgsModule {inherit (fleet) overlays allowUnfree;})
+        (lib.modules.importApply ../modules/shared/info {omninixRevision = lib.omninix.revision;})
       ]
       ++ platform.extraModules inputs
       ++ fleet.hostModules.${platform.name}
